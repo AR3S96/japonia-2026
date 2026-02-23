@@ -41,6 +41,7 @@ const DEFAULT_RATE = 0.027;
 export async function fetchExchangeRate(): Promise<{ rate: number; fromCache: boolean }> {
   // Try cache first
   const cached = getCached();
+  if (cached) return { rate: cached.rate, fromCache: true };
 
   // Try Frankfurter
   try {
