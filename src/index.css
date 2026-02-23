@@ -116,7 +116,8 @@ html, body {
   box-shadow: var(--glass-shadow), var(--glass-edge);
   transition: background 0.2s, border-color 0.2s;
   position: relative;
-  overflow: hidden;
+  overflow: clip;
+  overflow-clip-margin: 0px;
 }
 .card::before {
   content: '';
