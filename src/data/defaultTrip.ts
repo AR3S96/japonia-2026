@@ -1,0 +1,142 @@
+import type { TripDay } from '../types';
+
+const days: { date: string; label: string; location: 'tokyo' | 'kyoto' | 'travel' }[] = [
+  { date: '2026-11-05', label: 'Przylot – Tokio', location: 'tokyo' },
+  { date: '2026-11-06', label: 'Tokio – Shinjuku', location: 'tokyo' },
+  { date: '2026-11-07', label: 'Tokio – Asakusa & Ueno', location: 'tokyo' },
+  { date: '2026-11-08', label: 'Tokio – Harajuku & Shibuya', location: 'tokyo' },
+  { date: '2026-11-09', label: 'Tokio – Akihabara & Ginza', location: 'tokyo' },
+  { date: '2026-11-10', label: 'Tokio – Odaiba & Teamlab', location: 'tokyo' },
+  { date: '2026-11-11', label: 'Wycieczka – Nikko', location: 'tokyo' },
+  { date: '2026-11-12', label: 'Przejazd do Kioto', location: 'travel' },
+  { date: '2026-11-13', label: 'Kioto – Arashiyama', location: 'kyoto' },
+  { date: '2026-11-14', label: 'Kioto – Gion & Higashiyama', location: 'kyoto' },
+  { date: '2026-11-15', label: 'Kioto – Fushimi Inari', location: 'kyoto' },
+  { date: '2026-11-16', label: 'Kioto – Nijo & Kinkakuji', location: 'kyoto' },
+  { date: '2026-11-17', label: 'Kioto – Nara (wycieczka)', location: 'kyoto' },
+  { date: '2026-11-18', label: 'Powrót do domu', location: 'travel' },
+];
+
+const activitiesByDay: Record<string, { title: string; time?: string; category: 'zwiedzanie' | 'jedzenie' | 'transport' | 'zakupy' | 'nocleg' | 'inne'; description?: string; coordinates?: [number, number] }[]> = {
+  '2026-11-05': [
+    { title: 'Lot do Tokio', time: '00:00', category: 'transport', description: 'Lot z Warszawy, przylot do Narita/Haneda' },
+    { title: 'Transfer z lotniska do hotelu', time: '14:00', category: 'transport', description: 'Narita Express lub Limousine Bus' },
+    { title: 'Check-in w hotelu', time: '16:00', category: 'nocleg', description: 'Odpoczynek po długiej podróży' },
+    { title: 'Kolacja w okolicy hotelu', time: '19:00', category: 'jedzenie', description: 'Pierwsza kolacja w Japonii – spróbuj ramen!' },
+  ],
+  '2026-11-06': [
+    { title: 'Śniadanie w hotelu', time: '08:00', category: 'jedzenie' },
+    { title: 'Shinjuku Gyoen – ogród z momiji 🍁', time: '09:30', category: 'zwiedzanie', description: 'Piękny park z jesiennymi liśćmi', coordinates: [35.6851, 139.7100] },
+    { title: 'Lunch – Ramen Ichiran', time: '12:30', category: 'jedzenie', description: 'Słynny ramen w indywidualnych boksach' },
+    { title: 'Tokyjska Wieża Metropolitalna', time: '14:30', category: 'zwiedzanie', description: 'Widok na całe Tokio, wstęp bezpłatny!', coordinates: [35.6896, 139.6921] },
+    { title: 'Wieczór w Kabukicho', time: '19:00', category: 'zwiedzanie', description: 'Neonowa dzielnica rozrywki, ulica Godzilli' },
+  ],
+  '2026-11-07': [
+    { title: 'Senso-ji – świątynia Asakusa', time: '09:00', category: 'zwiedzanie', description: 'Najstarsza świątynia Tokio, targ Nakamise', coordinates: [35.7148, 139.7967] },
+    { title: 'Lunch – Tempura w Asakusa', time: '12:00', category: 'jedzenie' },
+    { title: 'Muzeum Narodowe w Ueno', time: '13:30', category: 'zwiedzanie', description: 'Największe muzeum Japonii', coordinates: [35.7188, 139.7745] },
+    { title: 'Park Ueno – momiji', time: '16:00', category: 'zwiedzanie', description: 'Jesienna przechadzka', coordinates: [35.7137, 139.7714] },
+    { title: 'Kolacja – Sushi Tsukiji', time: '18:30', category: 'jedzenie' },
+  ],
+  '2026-11-08': [
+    { title: 'Harajuku – Takeshita Street', time: '10:00', category: 'zakupy', description: 'Kolorowa ulica mody dla młodzieży', coordinates: [35.6713, 139.7029] },
+    { title: 'Meiji Jingu – świątynia', time: '11:30', category: 'zwiedzanie', description: 'Spokojny las pośród miasta', coordinates: [35.6764, 139.6993] },
+    { title: 'Lunch – Crepe w Harajuku', time: '13:00', category: 'jedzenie' },
+    { title: 'Shibuya Crossing – słynne przejście', time: '15:00', category: 'zwiedzanie', description: 'Jedno z najbardziej ruchliwych skrzyżowań na świecie', coordinates: [35.6595, 139.7004] },
+    { title: 'Zakupy w Shibuya 109', time: '16:00', category: 'zakupy' },
+    { title: 'Kolacja i koktajle w barze Sky', time: '19:00', category: 'jedzenie' },
+  ],
+  '2026-11-09': [
+    { title: 'Akihabara – elektronika i anime', time: '10:00', category: 'zakupy', description: 'Raj dla miłośników elektroniki i kultury otaku', coordinates: [35.7023, 139.7745] },
+    { title: 'Lunch – Maid Cafe (doświadczenie)', time: '12:30', category: 'jedzenie' },
+    { title: 'Ginza – luksusowa dzielnica', time: '14:30', category: 'zakupy', description: 'Haute couture i flagowe sklepy' },
+    { title: 'Tsukiji Outer Market', time: '16:30', category: 'jedzenie', description: 'Przekąski z owoców morza', coordinates: [35.6654, 139.7706] },
+    { title: 'Kolacja Izakaya', time: '19:00', category: 'jedzenie', description: 'Tradycyjny japoński pub z przekąskami' },
+  ],
+  '2026-11-10': [
+    { title: 'Odaiba – wyspa na zatoce', time: '10:00', category: 'zwiedzanie', description: 'Futurystyczna wyspa z widokiem na most Rainbow', coordinates: [35.6271, 139.7756] },
+    { title: 'teamLab Borderless (rezerwacja!)', time: '12:00', category: 'zwiedzanie', description: 'Niezwykła wystawa cyfrowa – zarezerwuj wcześniej!' },
+    { title: 'Lunch w DiverCity Mall', time: '15:00', category: 'jedzenie' },
+    { title: 'Onsen w Oedo Onsen Monogatari', time: '17:00', category: 'inne', description: 'Tradycyjne japońskie kąpielisko termalne' },
+  ],
+  '2026-11-11': [
+    { title: 'Wycieczka do Nikko (pociąg)', time: '08:00', category: 'transport', description: 'Spacerem z Shinjuku, ok. 2h jazdy' },
+    { title: 'Toshogu – złota świątynia', time: '10:30', category: 'zwiedzanie', description: 'UNESCO – mauzoleum shogunów Tokugawa', coordinates: [36.7580, 139.5990] },
+    { title: 'Lunch w Nikko', time: '13:00', category: 'jedzenie' },
+    { title: 'Wodospad Kegon', time: '14:30', category: 'zwiedzanie', description: 'Jeden z najpiękniejszych wodospadów Japonii' },
+    { title: 'Powrót do Tokio', time: '17:00', category: 'transport' },
+  ],
+  '2026-11-12': [
+    { title: 'Pożegnanie z Tokio, śniadanie', time: '08:00', category: 'jedzenie' },
+    { title: 'Przejazd Shinkansen do Kioto', time: '10:00', category: 'transport', description: 'Bullet train – 2,5h, widoki na Fuji po prawej!' },
+    { title: 'Check-in w Kioto', time: '13:00', category: 'nocleg' },
+    { title: 'Wieczorny spacer Gion', time: '17:00', category: 'zwiedzanie', description: 'Historyczna dzielnica gejsz', coordinates: [35.0036, 135.7754] },
+    { title: 'Kolacja kaiseki', time: '19:00', category: 'jedzenie', description: 'Tradycyjna wielodaniowa kuchnia japońska' },
+  ],
+  '2026-11-13': [
+    { title: 'Arashiyama – las bambusowy', time: '08:00', category: 'zwiedzanie', description: 'Idź rano, zanim przyjdą tłumy!', coordinates: [35.0094, 135.6722] },
+    { title: 'Świątynia Tenryu-ji', time: '09:30', category: 'zwiedzanie', description: 'UNESCO, piękny ogród japoński', coordinates: [35.0166, 135.6748] },
+    { title: 'Przejażdżka rikszą', time: '11:00', category: 'zwiedzanie', description: 'Romantyczna przejażdżka przez Arashiyamę' },
+    { title: 'Lunch – Tofu kaiseki', time: '12:30', category: 'jedzenie', description: 'Specjalność Kioto – kuchnia tofu' },
+    { title: 'Most Togetsukyo i momiji 🍁', time: '14:30', category: 'zwiedzanie', description: 'Jesienny widok na rzekę Oi', coordinates: [35.0101, 135.6776] },
+    { title: 'Kolacja w okolicy Kamo', time: '18:30', category: 'jedzenie' },
+  ],
+  '2026-11-14': [
+    { title: 'Higashiyama – stara uliczka Sannenzaka', time: '09:00', category: 'zwiedzanie', description: 'Kamienna uliczka z epoki Edo', coordinates: [34.9984, 135.7784] },
+    { title: 'Świątynia Kiyomizudera', time: '10:00', category: 'zwiedzanie', description: 'Drewniana platforma z widokiem na miasto – UNESCO', coordinates: [34.9949, 135.7850] },
+    { title: 'Herbata matcha w teahousie', time: '11:30', category: 'jedzenie', description: 'Tradycyjna ceremonia herbaciana' },
+    { title: 'Lunch w Gion', time: '13:00', category: 'jedzenie' },
+    { title: 'Dzielnica Gion – poszukiwanie maiko', time: '15:00', category: 'zwiedzanie', description: 'Może uda się zobaczyć maiko!' },
+    { title: 'Kolacja nad rzeką Kamo', time: '18:30', category: 'jedzenie' },
+  ],
+  '2026-11-15': [
+    { title: 'Fushimi Inari – tysiące torii', time: '07:00', category: 'zwiedzanie', description: 'Idź wcześnie rano! Pełne przejście trwa 2-3h', coordinates: [34.9671, 135.7727] },
+    { title: 'Lunch w okolicy Fushimi', time: '11:00', category: 'jedzenie', description: 'Spróbuj Inari sushi!' },
+    { title: 'Nishiki Market – kuchnia Kioto', time: '14:00', category: 'jedzenie', description: 'Wąski market z setkami stoisk z jedzeniem', coordinates: [35.0050, 135.7659] },
+    { title: 'Zakupy w centrum Kioto', time: '16:00', category: 'zakupy' },
+    { title: 'Kolacja Shabu-shabu', time: '19:00', category: 'jedzenie', description: 'Gotowanie w bulionie przy stole' },
+  ],
+  '2026-11-16': [
+    { title: 'Zamek Nijo – rezydencja shoguna', time: '09:00', category: 'zwiedzanie', description: 'UNESCO, słynne podłogi-słowiki', coordinates: [35.0142, 135.7483] },
+    { title: 'Kinkakuji – Złoty Pawilon', time: '11:00', category: 'zwiedzanie', description: 'Najbardziej fotografowane miejsce w Japonii', coordinates: [35.0394, 135.7292] },
+    { title: 'Lunch w okolicy', time: '13:00', category: 'jedzenie' },
+    { title: 'Filozoficzna Ścieżka z momiji 🍁', time: '14:30', category: 'zwiedzanie', description: 'Kanał obsadzony klonami – szczyt jesieni!', coordinates: [35.0171, 135.7944] },
+    { title: 'Ginkakuji – Srebrny Pawilon', time: '15:30', category: 'zwiedzanie', description: 'UNESCO, piękne tarasy z piasku', coordinates: [35.0270, 135.7982] },
+    { title: 'Pamiątki i zakupy', time: '17:00', category: 'zakupy' },
+    { title: 'Ostatnia uroczysta kolacja Kioto', time: '19:00', category: 'jedzenie' },
+  ],
+  '2026-11-17': [
+    { title: 'Wycieczka do Nara (JR train)', time: '09:00', category: 'transport', description: '45 min od Kioto' },
+    { title: 'Park Nara – jelenie!', time: '10:00', category: 'zwiedzanie', description: 'Ponad 1000 wolnych jeleni w parku', coordinates: [34.6818, 135.8396] },
+    { title: 'Todaiji – wielki Budda', time: '11:00', category: 'zwiedzanie', description: 'Największa drewniana budowla świata, gigantyczny Budda', coordinates: [34.6887, 135.8398] },
+    { title: 'Lunch – Naramachi', time: '13:00', category: 'jedzenie', description: 'Historyczna dzielnica kupiecka' },
+    { title: 'Kasuga Taisha – świątynia latarni', time: '14:30', category: 'zwiedzanie', description: 'Ponad 3000 latarni wzdłuż ścieżek', coordinates: [34.6816, 135.8449] },
+    { title: 'Powrót do Kioto', time: '17:00', category: 'transport' },
+    { title: 'Pożegnalne sake w barze', time: '20:00', category: 'jedzenie' },
+  ],
+  '2026-11-18': [
+    { title: 'Śniadanie i pakowanie', time: '07:00', category: 'jedzenie' },
+    { title: 'Transfer na lotnisko Kansai/Osaka', time: '09:00', category: 'transport', description: 'Haruka Express do Kansai Airport' },
+    { title: 'Odprawa i lot powrotny', time: '12:00', category: 'transport', description: 'Do zobaczenia Japonii! またね！' },
+  ],
+};
+
+export function generateDefaultTrip(): TripDay[] {
+  return days.map((day) => ({
+    id: day.date,
+    date: day.date,
+    label: day.label,
+    location: day.location,
+    notes: '',
+    activities: (activitiesByDay[day.date] || []).map((a, i) => ({
+      id: `${day.date}-${i}`,
+      title: a.title,
+      description: a.description,
+      time: a.time,
+      category: a.category,
+      completed: false,
+      order: i,
+      coordinates: a.coordinates,
+    })),
+  }));
+}
