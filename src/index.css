@@ -51,6 +51,16 @@ html {
   padding: 0;
   height: 100%;
   overflow: hidden;
+  /*
+   * iOS PWA safe area: solidny kolor tła pod safe area bottom.
+   * MUSI być nieprzezroczysty (nie rgba!) — pod html jest biały system bg iOS.
+   * Obliczony: --color-nav rgba(255,251,242,0.84) na --color-bg #FDF6EC ≈ #FEF9EF
+   */
+  background: #FEF9EF;
+}
+html[data-theme="dark"] {
+  /* Obliczony: --color-nav rgba(4,6,15,0.88) na --color-bg #07090F ≈ #060810 */
+  background: #060810;
 }
 
 body {
@@ -64,23 +74,21 @@ body {
   overscroll-behavior: none;
   height: 100%;
   overflow: hidden;
-  /*
-   * iOS PWA safe area fix: kolor body = kolor navu.
-   * Safe area bottom (home indicator) przebija się przez #root i pokazuje kolor body.
-   * Ustawiamy go na kolor navu żeby nie było białej przerwy.
-   */
-  background: var(--color-nav);
+  background: #FEF9EF;
+}
+[data-theme="dark"] body {
+  background: #060810;
 }
 
 /* ── TŁO Z GRADIENTAMI (źródło dla blur) ─────────── */
 #root {
   /*
-   * iOS PWA gap fix: 100dvh = dynamic viewport height
-   * Na iOS standalone mode dvh uwzględnia CAŁĄ wysokość ekranu (z safe areas).
-   * NIE używamy position:fixed — to powoduje problemy z safe area bottom.
-   * Tło body (wyżej) wypełnia safe area tym samym kolorem co nav.
+   * iOS PWA gap fix: 100% (nie dvh!) — łańcuch html→body→#root 100%.
+   * Na iOS PWA standalone z viewport-fit=cover, 100% na html = pełna wysokość
+   * ekranu WŁĄCZNIE z safe areas. 100dvh = viewport BEZ safe areas → gap!
+   * Solidny kolor na html/body (wyżej) pokrywa safe area bottom.
    */
-  height: 100dvh;
+  height: 100%;
   display: flex;
   flex-direction: column;
   overflow: hidden;
