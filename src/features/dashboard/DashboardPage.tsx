@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { differenceInDays, format } from 'date-fns';
 import { pl } from 'date-fns/locale';
 import { Calendar, MessageCircle, Wallet, Map, Info, CheckCircle2, Users, Package, X } from 'lucide-react';
@@ -11,7 +11,6 @@ import { useSync } from '../../context/SyncContext';
 import { useToast } from '../../context/ToastContext';
 import { useWeather } from '../../hooks/useWeather';
 import { TRIP_START, TRIP_END } from '../../lib/constants';
-import type { TripDay } from '../../types';
 import { DAILY_TIPS } from '../../data/tips';
 import { RoomModal } from '../../components/RoomModal';
 
@@ -58,47 +57,6 @@ function getGreeting(): { jp: string; pl: string } {
   return { jp: 'おやすみ', pl: 'Dobranoc' };
 }
 
-// ── SYSTEM ACHIEVEMENTÓW ─────────────────────────────────
-interface AchievementDef {
-  id: string;
-  kanji: string;
-  reading: string;
-  name: string;
-  emoji: string;
-  description: string;
-  color: string;
-  glowColor: string;
-}
-
-const ACHIEVEMENTS: AchievementDef[] = [
-  { id: 'tabibito',    kanji: '旅人',    reading: 'Tabibito',      name: 'Podróżnik',       emoji: '✈️', description: 'Dodaj pierwszą aktywność do planu',         color: '#0EA5E9', glowColor: 'rgba(14,165,233,0.35)' },
-  { id: 'keikakusha',  kanji: '計画者',  reading: 'Keikakusha',    name: 'Planista',        emoji: '📅', description: '50% aktywności ukończonych',                 color: '#D97706', glowColor: 'rgba(217,119,6,0.35)'  },
-  { id: 'junbi',       kanji: '準備完了', reading: 'Junbi Kanryō', name: 'Gotowy do drogi', emoji: '🧳', description: 'Pakowanie w 100%',                           color: '#059669', glowColor: 'rgba(5,150,105,0.35)'  },
-  { id: 'setsuyakuka', kanji: '節約家',  reading: 'Setsuyakuka',   name: 'Oszczędny',       emoji: '💴', description: 'Budżet poniżej 80%',                         color: '#7C3AED', glowColor: 'rgba(124,58,237,0.35)' },
-  { id: 'tankenka',    kanji: '探検家',  reading: 'Tankenka',      name: 'Odkrywca',        emoji: '🗺️', description: 'Więcej niż 5 miejsc na wishliscie',          color: '#DC2626', glowColor: 'rgba(220,38,38,0.35)'  },
-  { id: 'kanpeki',     kanji: '完璧',    reading: 'Kanpeki',       name: 'Perfekcjonista',  emoji: '⭐', description: 'Każdy dzień podróży ma min. 1 aktywność',   color: '#F59E0B', glowColor: 'rgba(245,158,11,0.40)' },
-  { id: 'shuppatsu',   kanji: '出発',    reading: 'Shuppatsu',     name: 'Wyruszasz',       emoji: '🛫', description: 'Mniej niż 7 dni do wyjazdu',                 color: '#D946EF', glowColor: 'rgba(217,70,239,0.35)' },
-];
-
-function computeUnlocked(
-  days: TripDay[],
-  totalAct: number,
-  completedAct: number,
-  packingPct: number,
-  budgetPct: number,
-  wishlistLen: number,
-  daysUntil: number,
-): Set<string> {
-  const u = new Set<string>();
-  if (totalAct > 0) u.add('tabibito');
-  if (totalAct > 0 && completedAct / totalAct >= 0.5) u.add('keikakusha');
-  if (packingPct === 100 && packingPct > 0) u.add('junbi');
-  if (budgetPct > 0 && budgetPct < 80) u.add('setsuyakuka');
-  if (wishlistLen > 5) u.add('tankenka');
-  if (days.length > 0 && days.every((d) => d.activities.length > 0)) u.add('kanpeki');
-  if (daysUntil >= 0 && daysUntil < 7) u.add('shuppatsu');
-  return u;
-}
 
 export function DashboardPage() {
   const navigate = useNavigate();
@@ -154,50 +112,6 @@ export function DashboardPage() {
 
   // Powitanie
   const greeting = getGreeting();
-
-  // Achievement system — memoizacja safeDays dla stabilnej referencji
-  const safeDaysMemo = useMemo(() => Array.isArray(days) ? days : [], [days]);
-
-  // Achievement system — stabilna referencja showToast by nie triggerować re-renderów
-  const showToastRef = useRef(showToast);
-  showToastRef.current = showToast;
-
-  const [unlockedIds, setUnlockedIds] = useState<Set<string>>(() => {
-    try { return new Set<string>(JSON.parse(localStorage.getItem('japan2026_badges') ?? '[]')); }
-    catch { return new Set<string>(); }
-  });
-  const [newBadgeId, setNewBadgeId] = useState<string | null>(null);
-  // Inicjalizacja z localStorage — żeby nie traktować już odblokowanych jako nowych przy każdym mountowaniu
-  const prevUnlockedRef = useRef<Set<string>>((() => {
-    try { return new Set<string>(JSON.parse(localStorage.getItem('japan2026_badges') ?? '[]')); }
-    catch { return new Set<string>(); }
-  })());
-  // Flag: czy toast dla nowej odznaki już się wyświetlił w tej sesji (per badge id)
-  const toastFiredRef = useRef<Set<string>>(new Set());
-
-  useEffect(() => {
-    const current = computeUnlocked(
-      safeDaysMemo, totalActivities, completedActivities,
-      packingPct, budgetPct, safeWishlist.length, daysUntil,
-    );
-    // Znajdź NOWO odblokowane (nie były w prev I jeszcze nie toastowane)
-    const newlyUnlocked = [...current].filter(
-      (id) => !prevUnlockedRef.current.has(id) && !toastFiredRef.current.has(id),
-    );
-    if (newlyUnlocked.length > 0) {
-      const badge = ACHIEVEMENTS.find((a) => a.id === newlyUnlocked[0]);
-      if (badge) {
-        toastFiredRef.current.add(newlyUnlocked[0]);
-        setTimeout(() => showToastRef.current(`${badge.emoji} ${badge.kanji} · ${badge.name} — ${badge.description}`, 'success'), 400);
-        setNewBadgeId(newlyUnlocked[0]);
-        setTimeout(() => setNewBadgeId(null), 3500);
-      }
-    }
-    prevUnlockedRef.current = current;
-    setUnlockedIds(current);
-    localStorage.setItem('japan2026_badges', JSON.stringify([...current]));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [safeDaysMemo, totalActivities, completedActivities, packingPct, budgetPct, safeWishlist.length, daysUntil]);
 
   // Celebracja kamieni milowych
   useEffect(() => {
@@ -392,56 +306,6 @@ export function DashboardPage() {
           </div>
           <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 4, textAlign: 'right' }}>
             {progressPct}% ukończone
-          </div>
-        </div>
-
-        {/* Stats Summary */}
-        <div className="card" style={{ padding: '12px 16px' }}>
-          <div style={{ fontWeight: 600, fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 10, textAlign: 'center', letterSpacing: '0.05em' }}>
-            統計 · Statystyki
-          </div>
-          <div className="stats-grid">
-            <div className="stats-item">
-              <span className="stats-value">{safeDays.filter((d) => d.activities.length > 0).length}/{safeDays.length}</span>
-              <span className="stats-label">Dni z planem</span>
-            </div>
-            <div className="stats-item">
-              <span className="stats-value">{completedActivities}/{totalActivities}</span>
-              <span className="stats-label">Aktywności</span>
-            </div>
-            <div className="stats-item">
-              <span className="stats-value">{packingPct}%</span>
-              <span className="stats-label">Spakowane</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Achievements */}
-        <div className="card">
-          <div className="noren-header" style={{ fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
-            実績 · Osiągnięcia
-          </div>
-          <div className="achievement-grid">
-            {ACHIEVEMENTS.map((badge) => {
-              const isUnlocked = unlockedIds.has(badge.id);
-              const isNew = newBadgeId === badge.id;
-              return (
-                <div
-                  key={badge.id}
-                  className={`achievement-badge${isUnlocked ? ' badge-unlocked' : ' badge-locked'}${isNew ? ' badge-new' : ''}`}
-                  style={isUnlocked ? ({ '--badge-color': badge.color, '--badge-glow': badge.glowColor } as React.CSSProperties) : undefined}
-                  title={badge.description}
-                >
-                  <span style={{ fontSize: 18, lineHeight: 1 }}>{badge.emoji}</span>
-                  <span style={{ fontSize: 15, fontWeight: 800, color: isUnlocked ? badge.color : undefined, lineHeight: 1 }}>{badge.kanji}</span>
-                  <span style={{ fontSize: 9, fontWeight: 600, color: 'var(--color-text-muted)', textAlign: 'center', lineHeight: 1.2 }}>{badge.name}</span>
-                  <span style={{ fontSize: 8, color: 'var(--color-text-muted)', opacity: 0.6, lineHeight: 1 }}>{badge.reading}</span>
-                </div>
-              );
-            })}
-          </div>
-          <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 10, textAlign: 'center' }}>
-            {unlockedIds.size}/{ACHIEVEMENTS.length} odznak odblokowanych
           </div>
         </div>
 
