@@ -50,6 +50,16 @@ export interface WishlistItem {
   createdAt: string;
 }
 
+export type PackingCategory = 'ubrania' | 'kosmetyki' | 'elektronika' | 'dokumenty' | 'inne';
+
+export interface PackingItem {
+  id: string;
+  name: string;
+  category: PackingCategory;
+  packed: boolean;
+  createdAt: string;
+}
+
 export type PhraseCategory = 'powitania' | 'restauracja' | 'transport' | 'zakupy' | 'naglePrzypadki' | 'hotel' | 'ogolne';
 
 export interface Phrase {

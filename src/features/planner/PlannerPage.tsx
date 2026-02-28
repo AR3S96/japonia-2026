@@ -1,9 +1,11 @@
-import { useState } from 'react';
-import { Plus, Trash2, CheckCircle, Circle, Clock, MapPin, FileText } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { Plus, CheckCircle, Circle, Clock, MapPin, FileText, Search, X } from 'lucide-react';
 import { Header } from '../../components/Header';
+import { SwipeableItem } from '../../components/SwipeableItem';
 import { useTrip } from '../../context/TripContext';
 import type { Activity, ActivityCategory } from '../../types';
-import { ACTIVITY_CATEGORIES } from '../../lib/constants';
+import { ACTIVITY_CATEGORIES, JP_WEEKDAYS } from '../../lib/constants';
 import { format } from 'date-fns';
 import { pl } from 'date-fns/locale';
 import { WishlistSection } from '../../components/WishlistSection';
@@ -14,17 +16,88 @@ const LOCATION_LABELS: Record<string, string> = {
   travel: '🚄 Przejazd',
 };
 
+function TimelineView({ activities, onToggle, onEdit, onDelete, completingId }: {
+  activities: Activity[];
+  onToggle: (id: string) => void;
+  onEdit: (a: Activity) => void;
+  onDelete: (id: string) => void;
+  completingId: string | null;
+}) {
+  return (
+    <div style={{ position: 'relative', paddingLeft: 48 }}>
+      {/* Pionowa linia */}
+      <div style={{
+        position: 'absolute', left: 18, top: 8, bottom: 8,
+        width: 2,
+        background: 'linear-gradient(to bottom, var(--color-primary), rgba(217,119,6,0.15))',
+        borderRadius: 1,
+      }} />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        {activities.map((activity) => {
+          const cat = ACTIVITY_CATEGORIES[activity.category];
+          return (
+            <div key={activity.id} style={{ position: 'relative', marginBottom: 8 }}>
+              {/* Kropka na linii */}
+              <div style={{
+                position: 'absolute', left: -34, top: 14,
+                width: 12, height: 12, borderRadius: '50%',
+                background: activity.completed ? 'var(--color-primary)' : 'var(--color-card-solid)',
+                border: `2px solid ${activity.completed ? 'var(--color-primary)' : cat.color}`,
+                zIndex: 2,
+                transition: 'background 0.2s, border-color 0.2s',
+              }} />
+              {/* Godzina nad kartą */}
+              <div style={{
+                fontSize: 11, fontWeight: 700, color: 'var(--color-primary)',
+                marginBottom: 3, letterSpacing: 0.5,
+              }}>
+                {activity.time}
+              </div>
+              <SwipeableItem onDelete={() => onDelete(activity.id)}>
+                <ActivityItem
+                  activity={activity}
+                  onToggle={() => onToggle(activity.id)}
+                  onEdit={() => onEdit(activity)}
+                  animating={completingId === activity.id}
+                />
+              </SwipeableItem>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function PlannerPage() {
   const { days, dispatch } = useTrip();
-  const [selectedDayId, setSelectedDayId] = useState(days[0]?.id ?? '');
+  const [selectedDayId, setSelectedDayId] = useState(() => {
+    const d = new Date();
+    const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    return days.find((day) => day.id === todayStr)?.id ?? days[0]?.id ?? '';
+  });
   const [showForm, setShowForm] = useState(false);
   const [editActivity, setEditActivity] = useState<Activity | null>(null);
   const [notesOpen, setNotesOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [completingId, setCompletingId] = useState<string | null>(null);
+  const daySelectorRef = useRef<HTMLDivElement>(null);
 
   const selectedDay = days.find((d) => d.id === selectedDayId) ?? days[0];
 
+  // Auto-scroll wybranego dnia do centrum
+  useEffect(() => {
+    if (!daySelectorRef.current) return;
+    const active = daySelectorRef.current.querySelector('.day-chip.active');
+    if (active) {
+      active.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+    }
+  }, [selectedDayId]);
+
   const handleToggle = (activityId: string) => {
     dispatch({ type: 'TOGGLE_ACTIVITY', dayId: selectedDay.id, activityId });
+    setCompletingId(activityId);
+    setTimeout(() => setCompletingId(null), 500);
   };
 
   const handleDelete = (activityId: string) => {
@@ -48,6 +121,20 @@ export function PlannerPage() {
     return a.order - b.order;
   });
 
+  const isSearching = searchQuery.trim().length > 0;
+  const searchResults = isSearching
+    ? days.flatMap((day) => {
+        const q = searchQuery.toLowerCase();
+        const matched = day.activities.filter(
+          (a) =>
+            a.title.toLowerCase().includes(q) ||
+            (a.description ?? '').toLowerCase().includes(q) ||
+            (a.location ?? '').toLowerCase().includes(q)
+        );
+        return matched.length > 0 ? [{ day, activities: matched }] : [];
+      })
+    : [];
+
   return (
     <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       <Header
@@ -56,7 +143,7 @@ export function PlannerPage() {
       />
 
       {/* Day selector */}
-      <div className="day-selector-bar" style={{
+      <div ref={daySelectorRef} className="day-selector-bar day-selector-snap" style={{
         display: 'flex',
         gap: 8,
         overflowX: 'auto',
@@ -67,25 +154,32 @@ export function PlannerPage() {
           const date = new Date(day.date);
           const completed = day.activities.filter((a) => a.completed).length;
           const total = day.activities.length;
+          const allDone = total > 0 && completed === total;
+          const jpDay = JP_WEEKDAYS[date.getDay()];
           return (
             <button
               key={day.id}
-              className={`day-chip${selectedDayId === day.id ? ' active' : ''}`}
+              className={`day-chip${selectedDayId === day.id ? ' active' : ''}${allDone ? ' day-complete' : ''}`}
               onClick={() => setSelectedDayId(day.id)}
             >
               <span style={{ fontSize: 10, fontWeight: 500 }}>
                 {format(date, 'EEE', { locale: pl }).toUpperCase()}
               </span>
+              <span className="jp-weekday">{jpDay}</span>
               <span style={{ fontSize: 16, fontWeight: 700 }}>{format(date, 'd')}</span>
-              {total > 0 && (
+              {allDone ? (
+                <span className="hanko-stamp">済</span>
+              ) : (
                 <span style={{
                   fontSize: 10,
-                  opacity: 0.8,
+                  opacity: total === 0 ? 0.4 : 0.9,
                   background: selectedDayId === day.id ? 'rgba(255,255,255,0.3)' : 'var(--color-border)',
                   padding: '1px 5px',
                   borderRadius: 10,
+                  minWidth: 16,
+                  textAlign: 'center',
                 }}>
-                  {completed}/{total}
+                  {total === 0 ? '·' : `${completed}/${total}`}
                 </span>
               )}
             </button>
@@ -94,99 +188,198 @@ export function PlannerPage() {
       </div>
 
       <div className="page-content" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {/* Wishlist */}
-        <WishlistSection />
-
-        {/* Day header */}
-        {selectedDay && (
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <div style={{ fontWeight: 700, fontSize: 17 }}>{selectedDay.label}</div>
-              <div style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>
-                {format(new Date(selectedDay.date), 'EEEE, d MMMM yyyy', { locale: pl })}
-              </div>
-            </div>
+        {/* Wyszukiwarka */}
+        <div style={{ position: 'relative' }}>
+          <Search size={16} style={{
+            position: 'absolute', left: 12, top: '50%',
+            transform: 'translateY(-50%)',
+            color: 'var(--color-text-muted)',
+            pointerEvents: 'none',
+          }} />
+          <input
+            className="input"
+            placeholder="Szukaj aktywności..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{ paddingLeft: 36, paddingRight: searchQuery ? 36 : 12 }}
+          />
+          {searchQuery && (
             <button
-              className="btn btn-ghost"
-              onClick={() => setNotesOpen(!notesOpen)}
-              style={{ padding: '6px 10px', minHeight: 36 }}
+              onClick={() => setSearchQuery('')}
+              style={{
+                position: 'absolute', right: 8, top: '50%',
+                transform: 'translateY(-50%)',
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: 'var(--color-text-muted)', padding: 4,
+              }}
             >
-              <FileText size={16} />
-              <span style={{ fontSize: 13 }}>Notatki</span>
+              <X size={14} />
             </button>
-          </div>
-        )}
+          )}
+        </div>
 
-        {/* Notes */}
-        {notesOpen && selectedDay && (
-          <div className="card">
-            <div style={{ fontWeight: 600, marginBottom: 8, fontSize: 14 }}>Notatki na ten dzień</div>
-            <textarea
-              className="input"
-              value={selectedDay.notes}
-              onChange={(e) =>
-                dispatch({ type: 'UPDATE_NOTES', dayId: selectedDay.id, notes: e.target.value })
-              }
-              placeholder="Dodaj notatki na ten dzień..."
-              rows={3}
-              style={{ resize: 'none' }}
-            />
-          </div>
-        )}
-
-        {/* Activities */}
-        {sortedActivities.length === 0 ? (
-          <div className="card" style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--color-text-muted)' }}>
-            <div style={{ fontSize: 32, marginBottom: 8 }}>📅</div>
-            <div>Brak aktywności na ten dzień</div>
-            <div style={{ fontSize: 13, marginTop: 4 }}>Dodaj pierwszą aktywność przyciskiem poniżej</div>
-          </div>
+        {/* Tryb wyszukiwania */}
+        {isSearching ? (
+          searchResults.length === 0 ? (
+            <div className="card" style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--color-text-muted)' }}>
+              <div style={{ fontSize: 32, marginBottom: 8 }}>🔍</div>
+              <div>Brak wyników dla „{searchQuery}"</div>
+            </div>
+          ) : (
+            searchResults.map(({ day, activities }) => (
+              <div key={day.id}>
+                <div style={{
+                  fontSize: 12, fontWeight: 700, color: 'var(--color-text-muted)',
+                  padding: '4px 2px 6px', textTransform: 'uppercase', letterSpacing: 0.5,
+                }}>
+                  {day.label} · {format(new Date(day.date), 'd MMM', { locale: pl })}
+                </div>
+                {activities.map((activity) => (
+                  <SwipeableItem
+                    key={activity.id}
+                    onDelete={() => dispatch({ type: 'DELETE_ACTIVITY', dayId: day.id, activityId: activity.id })}
+                  >
+                    <ActivityItem
+                      activity={activity}
+                      onToggle={() => dispatch({ type: 'TOGGLE_ACTIVITY', dayId: day.id, activityId: activity.id })}
+                      onEdit={() => { setSelectedDayId(day.id); setEditActivity(activity); setShowForm(true); }}
+                    />
+                  </SwipeableItem>
+                ))}
+              </div>
+            ))
+          )
         ) : (
-          sortedActivities.map((activity) => (
-            <ActivityItem
-              key={activity.id}
-              activity={activity}
-              onToggle={() => handleToggle(activity.id)}
-              onEdit={() => { setEditActivity(activity); setShowForm(true); }}
-              onDelete={() => handleDelete(activity.id)}
-            />
-          ))
-        )}
+          <>
+            {/* Wishlist */}
+            <WishlistSection />
 
-        <button
-          className="btn btn-primary"
-          onClick={() => { setEditActivity(null); setShowForm(true); }}
-          style={{ width: '100%', marginTop: 4 }}
-        >
-          <Plus size={18} />
-          Dodaj aktywność
-        </button>
+            {/* Day header */}
+            {selectedDay && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 17 }}>{selectedDay.label}</div>
+                  <div style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>
+                    {format(new Date(selectedDay.date), 'EEEE, d MMMM yyyy', { locale: pl })}
+                  </div>
+                </div>
+                <button
+                  className="btn btn-ghost"
+                  onClick={() => setNotesOpen(!notesOpen)}
+                  style={{ padding: '6px 10px', minHeight: 36 }}
+                >
+                  <FileText size={16} />
+                  <span style={{ fontSize: 13 }}>Notatki</span>
+                </button>
+              </div>
+            )}
+
+            {/* Notes */}
+            {notesOpen && selectedDay && (
+              <div className="card">
+                <div style={{ fontWeight: 600, marginBottom: 8, fontSize: 14 }}>Notatki na ten dzień</div>
+                <textarea
+                  className="input"
+                  value={selectedDay.notes}
+                  onChange={(e) =>
+                    dispatch({ type: 'UPDATE_NOTES', dayId: selectedDay.id, notes: e.target.value })
+                  }
+                  placeholder="Dodaj notatki na ten dzień..."
+                  rows={3}
+                  style={{ resize: 'none' }}
+                />
+              </div>
+            )}
+
+            {/* Activities */}
+            {sortedActivities.length === 0 ? (
+              <div className="card" style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--color-text-muted)' }}>
+                <div className="enso-circle" />
+                <div style={{ fontWeight: 600 }}>Pusty dzień</div>
+                <div style={{ fontSize: 13, marginTop: 4, lineHeight: 1.6 }}>
+                  Pusty dzień to przestrzeń na możliwości.<br/>
+                  Dodaj pierwszą aktywność poniżej.
+                </div>
+              </div>
+            ) : (
+              (() => {
+                const withTime = sortedActivities.filter((a) => a.time);
+                const withoutTime = sortedActivities.filter((a) => !a.time);
+                return (
+                  <>
+                    {withTime.length > 0 && (
+                      <TimelineView
+                        activities={withTime}
+                        onToggle={handleToggle}
+                        onEdit={(a) => { setEditActivity(a); setShowForm(true); }}
+                        onDelete={handleDelete}
+                        completingId={completingId}
+                      />
+                    )}
+                    {withoutTime.length > 0 && (
+                      <>
+                        {withTime.length > 0 && (
+                          <div style={{ fontSize: 12, color: 'var(--color-text-muted)', fontWeight: 600, padding: '4px 0 2px', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                            Bez godziny
+                          </div>
+                        )}
+                        {withoutTime.map((activity) => (
+                          <SwipeableItem
+                            key={activity.id}
+                            onDelete={() => handleDelete(activity.id)}
+                          >
+                            <ActivityItem
+                              activity={activity}
+                              onToggle={() => handleToggle(activity.id)}
+                              onEdit={() => { setEditActivity(activity); setShowForm(true); }}
+                              animating={completingId === activity.id}
+                            />
+                          </SwipeableItem>
+                        ))}
+                      </>
+                    )}
+                  </>
+                );
+              })()
+            )}
+
+            <button
+              className="btn btn-primary"
+              onClick={() => { setEditActivity(null); setShowForm(true); }}
+              style={{ width: '100%', marginTop: 4 }}
+            >
+              <Plus size={18} />
+              Dodaj aktywność
+            </button>
+          </>
+        )}
       </div>
 
-      {showForm && (
+      {showForm && createPortal(
         <ActivityForm
           initial={editActivity}
           onSave={handleSave}
           onClose={() => { setShowForm(false); setEditActivity(null); }}
-        />
+        />,
+        document.body
       )}
     </div>
   );
 }
 
 function ActivityItem({
-  activity, onToggle, onEdit, onDelete,
+  activity, onToggle, onEdit, animating,
 }: {
   activity: Activity;
   onToggle: () => void;
   onEdit: () => void;
-  onDelete: () => void;
+  animating?: boolean;
 }) {
   const cat = ACTIVITY_CATEGORIES[activity.category];
 
   return (
-    <div className="activity-item" style={{ opacity: activity.completed ? 0.6 : 1 }}>
-      <button onClick={onToggle} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', flexShrink: 0, marginTop: 1 }}>
+    <div className={`activity-item${animating ? ' complete-pulse' : ''}`} style={{ opacity: activity.completed ? 0.6 : 1 }}>
+      <button onClick={onToggle} className={animating ? 'check-pop' : ''} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', flexShrink: 0, marginTop: 1 }}>
         {activity.completed
           ? <CheckCircle size={22} color="var(--color-primary)" />
           : <Circle size={22} color="var(--color-border)" />
@@ -220,12 +413,6 @@ function ActivityItem({
           </div>
         )}
       </div>
-      <button
-        onClick={onDelete}
-        style={{ background: 'none', border: 'none', padding: '4px', cursor: 'pointer', flexShrink: 0, color: 'var(--color-text-muted)' }}
-      >
-        <Trash2 size={16} />
-      </button>
     </div>
   );
 }

@@ -1,8 +1,12 @@
-import { createContext, useContext, useEffect, useReducer } from 'react';
+import { createContext, useContext, useEffect, useReducer, useCallback, useMemo, useRef } from 'react';
 import type { ReactNode } from 'react';
 import type { TripDay, Activity, WishlistItem } from '../types';
 import { generateDefaultTrip } from '../data/defaultTrip';
 import { useIndexedDB } from '../hooks/useIndexedDB';
+import { generateId } from '../lib/utils';
+import { useFirebaseSync } from '../hooks/useFirebaseSync';
+import { useSync } from './SyncContext';
+import { useToast } from './ToastContext';
 
 interface TripState {
   days: TripDay[];
@@ -39,7 +43,7 @@ function tripReducer(state: TripState, action: TripAction): TripState {
                   ...d.activities,
                   {
                     ...action.activity,
-                    id: `${action.dayId}-${Date.now()}`,
+                    id: generateId(action.dayId),
                     order: d.activities.length,
                   },
                 ],
@@ -91,7 +95,7 @@ function tripReducer(state: TripState, action: TripAction): TripState {
           ...state.wishlist,
           {
             ...action.item,
-            id: `wish-${Date.now()}`,
+            id: generateId('wish'),
             createdAt: new Date().toISOString(),
           },
         ],
@@ -105,7 +109,7 @@ function tripReducer(state: TripState, action: TripAction): TripState {
       const item = state.wishlist.find((w) => w.id === action.itemId);
       if (!item) return state;
       const newActivity: Activity = {
-        id: `${action.dayId}-${Date.now()}`,
+        id: generateId(action.dayId),
         title: item.title,
         description: item.description,
         category: item.category,
@@ -172,6 +176,40 @@ export function TripProvider({ children }: { children: ReactNode }) {
       setSavedWishlist(state.wishlist);
     }
   }, [state.wishlist, loadingWishlist]);
+
+  // Firebase sync
+  const { roomCode } = useSync();
+  const { showToast } = useToast();
+  const syncEnabled = !!roomCode && !loading;
+  const lastSyncErrorRef = useRef(0);
+
+  const handleRemoteUpdate = useCallback((data: { days?: TripDay[]; wishlist?: WishlistItem[] }) => {
+    if (Array.isArray(data.days) && Array.isArray(data.wishlist)) {
+      dispatch({ type: 'IMPORT_DATA', days: data.days, wishlist: data.wishlist });
+    }
+  }, []);
+
+  const handleSyncError = useCallback(() => {
+    const now = Date.now();
+    if (now - lastSyncErrorRef.current > 5000) {
+      lastSyncErrorRef.current = now;
+      showToast('Nie udało się zsynchronizować planu', 'error');
+    }
+  }, [showToast]);
+
+  const syncData = useMemo(
+    () => ({ days: state.days, wishlist: state.wishlist }),
+    [state.days, state.wishlist]
+  );
+
+  useFirebaseSync({
+    roomCode,
+    path: 'trip',
+    localData: syncData,
+    onRemoteUpdate: handleRemoteUpdate,
+    enabled: syncEnabled,
+    onError: handleSyncError,
+  });
 
   return (
     <TripContext.Provider value={{ days: state.days, wishlist: state.wishlist, dispatch, loading }}>

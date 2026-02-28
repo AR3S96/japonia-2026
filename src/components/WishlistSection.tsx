@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { ChevronDown, ChevronRight, Plus, Trash2, ArrowRight, MapPin } from 'lucide-react';
 import { useTrip } from '../context/TripContext';
 import type { ActivityCategory, WishlistItem } from '../types';
@@ -151,15 +152,16 @@ export function WishlistSection() {
             Dodaj miejsce
           </button>
 
-          {/* Add form modal */}
-          {showForm && (
+          {/* Add form modal – portal żeby fixed działał na iOS */}
+          {showForm && createPortal(
             <WishlistForm
               onSave={(item) => {
                 dispatch({ type: 'ADD_WISHLIST_ITEM', item });
                 setShowForm(false);
               }}
               onClose={() => setShowForm(false)}
-            />
+            />,
+            document.body
           )}
         </>
       )}

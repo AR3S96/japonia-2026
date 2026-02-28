@@ -26,6 +26,8 @@ export default defineConfig({
         ]
       },
       workbox: {
+        skipWaiting: true,
+        clientsClaim: true,
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         runtimeCaching: [
           {
@@ -48,6 +50,7 @@ export default defineConfig({
           'react-vendor': ['react', 'react-dom', 'react-router-dom'],
           'charts': ['recharts'],
           'utils': ['date-fns', 'idb-keyval', 'lucide-react'],
+          'firebase': ['firebase/app', 'firebase/database'],
         }
       }
     }

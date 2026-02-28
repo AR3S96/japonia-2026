@@ -34,3 +34,6 @@ export const PHRASE_CATEGORIES: Record<PhraseCategory, { label: string; emoji: s
 
 export const DEFAULT_EXCHANGE_RATE = 0.027; // 1 JPY = 0.027 PLN
 export const DEFAULT_BUDGET_PLN = 10000;
+
+// Japońskie dni tygodnia (niedziela = 0)
+export const JP_WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'] as const;

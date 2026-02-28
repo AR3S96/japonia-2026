@@ -5,7 +5,26 @@
       "mcp__Claude_Preview__preview_start",
       "Bash(npm:*)",
       "Bash(node ./node_modules/typescript/bin/tsc:*)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(npx expo install:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx expo export:*)",
+      "Bash(cat:*)",
+      "Bash(head -12:*)",
+      "Bash(git stash:*)",
+      "Bash(python -c \" import sys, json lines = sys.stdin.readlines\\(\\) for line in lines: try: obj = json.loads\\(line.strip\\(\\)\\) t = obj.get\\(''type'', ''''\\) if t == ''user'': content = obj.get\\(''message'', {}\\).get\\(''content'', ''''\\) if isinstance\\(content, list\\): for c in content: if isinstance\\(c, dict\\) and c.get\\(''type''\\) == ''text'': print\\(''USER:'', c[''text''][:500]\\) elif isinstance\\(content, str\\): print\\(''USER:'', content[:500]\\) elif t == ''assistant'': content = obj.get\\(''message'', {}\\).get\\(''content'', ''''\\) if isinstance\\(content, list\\): for c in content: if isinstance\\(c, dict\\) and c.get\\(''type''\\) == ''text'': print\\(''ASSISTANT:'', c[''text''][:500]\\) elif isinstance\\(content, str\\): print\\(''ASSISTANT:'', content[:500]\\) except: pass \")",
+      "Bash(python:*)",
+      "Bash(grep:*)",
+      "Bash(where:*)",
+      "WebFetch(domain:exchangerate.host)",
+      "WebFetch(domain:www.exchangerate-api.com)",
+      "WebFetch(domain:frankfurter.dev)",
+      "WebFetch(domain:github.com)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(npx vite build)",
+      "Bash(npx gh-pages -d dist)"
     ]
   }
 }

@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Plus, Trash2, Settings, ArrowLeftRight, RefreshCw } from 'lucide-react';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { Header } from '../../components/Header';
 import { useBudget } from '../../context/BudgetContext';
 import type { ExpenseCategory } from '../../types';
-import { EXPENSE_CATEGORIES } from '../../lib/constants';
+import { EXPENSE_CATEGORIES, TRIP_START, TRIP_END } from '../../lib/constants';
 import { format } from 'date-fns';
 import { pl } from 'date-fns/locale';
 
@@ -16,6 +17,21 @@ export function BudgetPage() {
   const [converterJPY, setConverterJPY] = useState('');
   const [converterPLN, setConverterPLN] = useState('');
   const [activeTab, setActiveTab] = useState<'lista' | 'wykresy'>('lista');
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [newExpenseId, setNewExpenseId] = useState<string | null>(null);
+  const prevExpenseCountRef = useRef(state.expenses.length);
+
+  // Wykrywanie nowo dodanego wydatku do animacji glow
+  useEffect(() => {
+    if (newExpenseId === '__pending' && state.expenses.length > prevExpenseCountRef.current) {
+      const latest = state.expenses[state.expenses.length - 1];
+      if (latest) {
+        setNewExpenseId(latest.id);
+        setTimeout(() => setNewExpenseId(null), 900);
+      }
+    }
+    prevExpenseCountRef.current = state.expenses.length;
+  }, [state.expenses, newExpenseId]);
 
   const totalSpentPLN = state.expenses.reduce((s, e) => s + e.amountPLN, 0);
   const remaining = state.budget - totalSpentPLN;
@@ -124,7 +140,8 @@ export function BudgetPage() {
                 value={converterJPY}
                 onChange={(e) => {
                   setConverterJPY(e.target.value);
-                  setConverterPLN(e.target.value ? (parseFloat(e.target.value) * state.exchangeRate).toFixed(2) : '');
+                  const parsed = parseFloat(e.target.value);
+                  setConverterPLN(!e.target.value || isNaN(parsed) ? '' : (parsed * state.exchangeRate).toFixed(2));
                 }}
                 placeholder="0"
               />
@@ -138,7 +155,8 @@ export function BudgetPage() {
                 value={converterPLN}
                 onChange={(e) => {
                   setConverterPLN(e.target.value);
-                  setConverterJPY(e.target.value ? (parseFloat(e.target.value) / state.exchangeRate).toFixed(0) : '');
+                  const parsed = parseFloat(e.target.value);
+                  setConverterJPY(!e.target.value || isNaN(parsed) ? '' : (parsed / state.exchangeRate).toFixed(0));
                 }}
                 placeholder="0"
               />
@@ -164,9 +182,16 @@ export function BudgetPage() {
           <>
             {sortedDates.length === 0 ? (
               <div className="card" style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--color-text-muted)' }}>
-                <div style={{ fontSize: 32, marginBottom: 8 }}>💰</div>
-                <div>Brak wydatków</div>
-                <div style={{ fontSize: 13, marginTop: 4 }}>Dodaj pierwszy wydatek przyciskiem poniżej</div>
+                <div style={{
+                  width: 52, height: 52, borderRadius: '50%', margin: '0 auto 12px',
+                  border: '2px solid var(--color-border-solid)', display: 'flex',
+                  alignItems: 'center', justifyContent: 'center', fontSize: 22, opacity: 0.4,
+                }}>¥</div>
+                <div style={{ fontWeight: 600 }}>Fundusz gotowy</div>
+                <div style={{ fontSize: 13, marginTop: 4, lineHeight: 1.6 }}>
+                  Twoja przygoda czeka na pierwsze wydatki.<br/>
+                  Zacznij rejestrować wspomnienia.
+                </div>
               </div>
             ) : (
               sortedDates.map((date) => (
@@ -176,7 +201,7 @@ export function BudgetPage() {
                     {byDate[date].reduce((s, e) => s + e.amountPLN, 0).toFixed(0)} zł
                   </div>
                   {byDate[date].map((expense) => (
-                    <div key={expense.id} className="activity-item" style={{ marginBottom: 8 }}>
+                    <div key={expense.id} className={`activity-item${newExpenseId === expense.id ? ' new-item-glow' : ''}`} style={{ marginBottom: 8 }}>
                       <span style={{ fontSize: 20 }}>{EXPENSE_CATEGORIES[expense.category].emoji}</span>
                       <div style={{ flex: 1 }}>
                         <div style={{ fontWeight: 600, fontSize: 14 }}>{expense.description}</div>
@@ -188,12 +213,32 @@ export function BudgetPage() {
                         <div style={{ fontWeight: 700, color: 'var(--color-accent)' }}>{expense.amountPLN.toFixed(0)} zł</div>
                         <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{expense.amount.toLocaleString()} ¥</div>
                       </div>
-                      <button
-                        onClick={() => dispatch({ type: 'DELETE_EXPENSE', id: expense.id })}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)', padding: 4 }}
-                      >
-                        <Trash2 size={15} />
-                      </button>
+                      {confirmingId === expense.id ? (
+                        <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexShrink: 0 }}>
+                          <span style={{ fontSize: 12, color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>Usuń?</span>
+                          <button
+                            className="btn btn-danger"
+                            onClick={() => { dispatch({ type: 'DELETE_EXPENSE', id: expense.id }); setConfirmingId(null); }}
+                            style={{ minHeight: 28, padding: '3px 8px', fontSize: 12, borderRadius: 8 }}
+                          >
+                            Tak
+                          </button>
+                          <button
+                            className="btn btn-ghost"
+                            onClick={() => setConfirmingId(null)}
+                            style={{ minHeight: 28, padding: '3px 8px', fontSize: 12, borderRadius: 8 }}
+                          >
+                            Nie
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setConfirmingId(expense.id)}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)', padding: 4, flexShrink: 0 }}
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -267,15 +312,20 @@ export function BudgetPage() {
 
       </div>
 
-      {showForm && (
+      {showForm && createPortal(
         <ExpenseForm
           rate={state.exchangeRate}
-          onSave={(expense) => { dispatch({ type: 'ADD_EXPENSE', expense }); setShowForm(false); }}
+          onSave={(expense) => {
+            dispatch({ type: 'ADD_EXPENSE', expense });
+            setShowForm(false);
+            setNewExpenseId('__pending');
+          }}
           onClose={() => setShowForm(false)}
-        />
+        />,
+        document.body
       )}
 
-      {showSettings && (
+      {showSettings && createPortal(
         <BudgetSettings
           budget={state.budget}
           rate={state.exchangeRate}
@@ -285,7 +335,8 @@ export function BudgetPage() {
             setShowSettings(false);
           }}
           onClose={() => setShowSettings(false)}
-        />
+        />,
+        document.body
       )}
     </div>
   );
@@ -297,6 +348,8 @@ function ExpenseForm({ rate, onSave, onClose }: {
   onClose: () => void;
 }) {
   const today = new Date().toISOString().split('T')[0];
+  const tripStartStr = TRIP_START.toISOString().split('T')[0];
+  const tripEndStr = TRIP_END.toISOString().split('T')[0];
   const [form, setForm] = useState({ amount: '', description: '', category: 'jedzenie' as ExpenseCategory, date: today, currency: 'JPY' as 'JPY' | 'PLN' });
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -340,7 +393,7 @@ function ExpenseForm({ rate, onSave, onClose }: {
             </div>
             <div>
               <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-muted)', display: 'block', marginBottom: 4 }}>Data</label>
-              <input className="input" type="date" value={form.date} onChange={(e) => set('date', e.target.value)} />
+              <input className="input" type="date" value={form.date} min={tripStartStr} max={tripEndStr} onChange={(e) => set('date', e.target.value)} />
             </div>
           </div>
           <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>

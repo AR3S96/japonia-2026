@@ -1,23 +1,117 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { differenceInDays, format } from 'date-fns';
 import { pl } from 'date-fns/locale';
-import { Calendar, MessageCircle, Wallet, Map, Info, CheckCircle2, Share2, Download } from 'lucide-react';
+import { Calendar, MessageCircle, Wallet, Map, Info, CheckCircle2, Users, Package, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Header } from '../../components/Header';
 import { useTrip } from '../../context/TripContext';
 import { useBudget } from '../../context/BudgetContext';
+import { usePacking } from '../../context/PackingContext';
+import { useSync } from '../../context/SyncContext';
+import { useToast } from '../../context/ToastContext';
+import { useWeather } from '../../hooks/useWeather';
 import { TRIP_START, TRIP_END } from '../../lib/constants';
-import { exportAllData, parseImport, copyToClipboard, downloadJson } from '../../lib/tripExport';
+import type { TripDay } from '../../types';
+import { DAILY_TIPS } from '../../data/tips';
+import { RoomModal } from '../../components/RoomModal';
+
+// Zdjęcia Japonii — starannie dobrane, darmowe z Unsplash (bez klucza API)
+const JAPAN_PHOTOS = [
+  {
+    url: 'https://images.unsplash.com/photo-1528360983277-13d401cdc186?w=800&q=80',
+    caption: 'Kioto w sezonie momiji 🍁',
+    credit: 'Kioto',
+  },
+  {
+    url: 'https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=800&q=80',
+    caption: 'Torii o świcie ⛩️',
+    credit: 'Miyajima',
+  },
+  {
+    url: 'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=800&q=80',
+    caption: 'Tokio nocą 🗼',
+    credit: 'Tokio',
+  },
+  {
+    url: 'https://images.unsplash.com/photo-1526481280693-3bfa7568e0f3?w=800&q=80',
+    caption: 'Góra Fuji 🗻',
+    credit: 'Fuji',
+  },
+  {
+    url: 'https://images.unsplash.com/photo-1545569341-9eb8b30979d9?w=800&q=80',
+    caption: 'Świątynia Senso-ji 🏯',
+    credit: 'Asakusa',
+  },
+  {
+    url: 'https://images.unsplash.com/photo-1578271887552-5ac3a72752bc?w=800&q=80',
+    caption: 'Bambusowy gaj 🎋',
+    credit: 'Arashiyama',
+  },
+] as const;
+
+// Japońskie powitanie wg pory dnia
+function getGreeting(): { jp: string; pl: string } {
+  const h = new Date().getHours();
+  if (h >= 5 && h < 11) return { jp: 'おはよう', pl: 'Dzień dobry' };
+  if (h >= 11 && h < 17) return { jp: 'こんにちは', pl: 'Cześć' };
+  if (h >= 17 && h < 22) return { jp: 'こんばんは', pl: 'Dobry wieczór' };
+  return { jp: 'おやすみ', pl: 'Dobranoc' };
+}
+
+// ── SYSTEM ACHIEVEMENTÓW ─────────────────────────────────
+interface AchievementDef {
+  id: string;
+  kanji: string;
+  reading: string;
+  name: string;
+  emoji: string;
+  description: string;
+  color: string;
+  glowColor: string;
+}
+
+const ACHIEVEMENTS: AchievementDef[] = [
+  { id: 'tabibito',    kanji: '旅人',    reading: 'Tabibito',      name: 'Podróżnik',       emoji: '✈️', description: 'Dodaj pierwszą aktywność do planu',         color: '#0EA5E9', glowColor: 'rgba(14,165,233,0.35)' },
+  { id: 'keikakusha',  kanji: '計画者',  reading: 'Keikakusha',    name: 'Planista',        emoji: '📅', description: '50% aktywności ukończonych',                 color: '#D97706', glowColor: 'rgba(217,119,6,0.35)'  },
+  { id: 'junbi',       kanji: '準備完了', reading: 'Junbi Kanryō', name: 'Gotowy do drogi', emoji: '🧳', description: 'Pakowanie w 100%',                           color: '#059669', glowColor: 'rgba(5,150,105,0.35)'  },
+  { id: 'setsuyakuka', kanji: '節約家',  reading: 'Setsuyakuka',   name: 'Oszczędny',       emoji: '💴', description: 'Budżet poniżej 80%',                         color: '#7C3AED', glowColor: 'rgba(124,58,237,0.35)' },
+  { id: 'tankenka',    kanji: '探検家',  reading: 'Tankenka',      name: 'Odkrywca',        emoji: '🗺️', description: 'Więcej niż 5 miejsc na wishliscie',          color: '#DC2626', glowColor: 'rgba(220,38,38,0.35)'  },
+  { id: 'kanpeki',     kanji: '完璧',    reading: 'Kanpeki',       name: 'Perfekcjonista',  emoji: '⭐', description: 'Każdy dzień podróży ma min. 1 aktywność',   color: '#F59E0B', glowColor: 'rgba(245,158,11,0.40)' },
+  { id: 'shuppatsu',   kanji: '出発',    reading: 'Shuppatsu',     name: 'Wyruszasz',       emoji: '🛫', description: 'Mniej niż 7 dni do wyjazdu',                 color: '#D946EF', glowColor: 'rgba(217,70,239,0.35)' },
+];
+
+function computeUnlocked(
+  days: TripDay[],
+  totalAct: number,
+  completedAct: number,
+  packingPct: number,
+  budgetPct: number,
+  wishlistLen: number,
+  daysUntil: number,
+): Set<string> {
+  const u = new Set<string>();
+  if (totalAct > 0) u.add('tabibito');
+  if (totalAct > 0 && completedAct / totalAct >= 0.5) u.add('keikakusha');
+  if (packingPct === 100 && packingPct > 0) u.add('junbi');
+  if (budgetPct > 0 && budgetPct < 80) u.add('setsuyakuka');
+  if (wishlistLen > 5) u.add('tankenka');
+  if (days.length > 0 && days.every((d) => d.activities.length > 0)) u.add('kanpeki');
+  if (daysUntil >= 0 && daysUntil < 7) u.add('shuppatsu');
+  return u;
+}
 
 export function DashboardPage() {
   const navigate = useNavigate();
-  const { days, wishlist, dispatch } = useTrip();
-  const { state, dispatch: budgetDispatch } = useBudget();
-  const [showShareModal, setShowShareModal] = useState(false);
-  const [showImportModal, setShowImportModal] = useState(false);
-  const [importText, setImportText] = useState('');
-  const [importError, setImportError] = useState('');
-  const [copied, setCopied] = useState(false);
+  const { days, wishlist } = useTrip();
+  const { state } = useBudget();
+  const { items: packingItems } = usePacking();
+  const { roomCode, isConnected } = useSync();
+  const { showToast } = useToast();
+  const [showRoomModal, setShowRoomModal] = useState(false);
+  const [showHint, setShowHint] = useState(() => !localStorage.getItem('japan2026_visited'));
+  const [photoIndex, setPhotoIndex] = useState(0);
+  const [photoLoaded, setPhotoLoaded] = useState(false);
+  const milestoneRef = useRef(0);
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -33,79 +127,253 @@ export function DashboardPage() {
   const daysUntil = differenceInDays(tripStart, today);
   const currentDayNum = isDuringTrip ? differenceInDays(today, tripStart) + 1 : null;
 
-  const totalActivities = days.reduce((s, d) => s + d.activities.length, 0);
-  const completedActivities = days.reduce((s, d) => s + d.activities.filter((a) => a.completed).length, 0);
+  const safeDays = Array.isArray(days) ? days : [];
+  const safeWishlist = Array.isArray(wishlist) ? wishlist : [];
+  const safeExpenses = Array.isArray(state?.expenses) ? state.expenses : [];
+
+  const totalActivities = safeDays.reduce((s, d) => s + d.activities.length, 0);
+  const completedActivities = safeDays.reduce((s, d) => s + d.activities.filter((a) => a.completed).length, 0);
   const progressPct = totalActivities > 0 ? Math.round((completedActivities / totalActivities) * 100) : 0;
 
-  const totalSpentPLN = state.expenses.reduce((s, e) => s + e.amountPLN, 0);
-  const remainingPLN = state.budget - totalSpentPLN;
+  const totalSpentPLN = safeExpenses.reduce((s, e) => s + e.amountPLN, 0);
+  const remainingPLN = (state?.budget ?? 0) - totalSpentPLN;
+  const budgetPct = (state?.budget ?? 0) > 0
+    ? Math.min(100, Math.round((totalSpentPLN / state.budget) * 100))
+    : 0;
 
-  const handleExport = async () => {
-    const json = exportAllData(days, wishlist, state);
-    const ok = await copyToClipboard(json);
-    if (ok) {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+  const { weather, loading: weatherLoading } = useWeather(isDuringTrip);
+
+  // Pakowanie
+  const packedCount = packingItems.filter((i) => i.packed).length;
+  const packingTotal = packingItems.length;
+  const packingPct = packingTotal > 0 ? Math.round((packedCount / packingTotal) * 100) : 0;
+
+  // Rotujące porady
+  const tipIndex = Math.abs(daysUntil) % DAILY_TIPS.length;
+  const tip = DAILY_TIPS[tipIndex];
+
+  // Powitanie
+  const greeting = getGreeting();
+
+  // Achievement system — memoizacja safeDays dla stabilnej referencji
+  const safeDaysMemo = useMemo(() => Array.isArray(days) ? days : [], [days]);
+
+  // Achievement system — stabilna referencja showToast by nie triggerować re-renderów
+  const showToastRef = useRef(showToast);
+  showToastRef.current = showToast;
+
+  const [unlockedIds, setUnlockedIds] = useState<Set<string>>(() => {
+    try { return new Set<string>(JSON.parse(localStorage.getItem('japan2026_badges') ?? '[]')); }
+    catch { return new Set<string>(); }
+  });
+  const [newBadgeId, setNewBadgeId] = useState<string | null>(null);
+  // Inicjalizacja z localStorage — żeby nie traktować już odblokowanych jako nowych przy każdym mountowaniu
+  const prevUnlockedRef = useRef<Set<string>>((() => {
+    try { return new Set<string>(JSON.parse(localStorage.getItem('japan2026_badges') ?? '[]')); }
+    catch { return new Set<string>(); }
+  })());
+  // Flag: czy toast dla nowej odznaki już się wyświetlił w tej sesji (per badge id)
+  const toastFiredRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    const current = computeUnlocked(
+      safeDaysMemo, totalActivities, completedActivities,
+      packingPct, budgetPct, safeWishlist.length, daysUntil,
+    );
+    // Znajdź NOWO odblokowane (nie były w prev I jeszcze nie toastowane)
+    const newlyUnlocked = [...current].filter(
+      (id) => !prevUnlockedRef.current.has(id) && !toastFiredRef.current.has(id),
+    );
+    if (newlyUnlocked.length > 0) {
+      const badge = ACHIEVEMENTS.find((a) => a.id === newlyUnlocked[0]);
+      if (badge) {
+        toastFiredRef.current.add(newlyUnlocked[0]);
+        setTimeout(() => showToastRef.current(`${badge.emoji} ${badge.kanji} · ${badge.name} — ${badge.description}`, 'success'), 400);
+        setNewBadgeId(newlyUnlocked[0]);
+        setTimeout(() => setNewBadgeId(null), 3500);
+      }
     }
-  };
+    prevUnlockedRef.current = current;
+    setUnlockedIds(current);
+    localStorage.setItem('japan2026_badges', JSON.stringify([...current]));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [safeDaysMemo, totalActivities, completedActivities, packingPct, budgetPct, safeWishlist.length, daysUntil]);
 
-  const handleDownload = () => {
-    const json = exportAllData(days, wishlist, state);
-    downloadJson(json);
-  };
+  // Celebracja kamieni milowych
+  useEffect(() => {
+    if (totalActivities === 0) return;
+    const milestones = [25, 50, 75, 100];
+    const lastCelebrated = parseInt(localStorage.getItem('japan2026_lastMilestone') ?? '0');
+    const currentMilestone = milestones.filter((m) => progressPct >= m).pop() ?? 0;
 
-  const handleImport = () => {
-    const data = parseImport(importText);
-    if (!data) {
-      setImportError('Nieprawidłowy format danych. Sprawdź czy wklejony JSON jest poprawny.');
-      return;
+    if (currentMilestone > lastCelebrated && currentMilestone > milestoneRef.current) {
+      milestoneRef.current = currentMilestone;
+      localStorage.setItem('japan2026_lastMilestone', String(currentMilestone));
+      const msgs: Record<number, string> = {
+        25: 'Świetny start! 25% planu gotowe 🌸',
+        50: 'Połowa drogi! 50% zaplanowane 🗾',
+        75: 'Prawie gotowe! 75% ukończone ⛩️',
+        100: 'Sugoi! Plan wycieczki kompletny! 🎌✨',
+      };
+      if (msgs[currentMilestone]) {
+        setTimeout(() => showToast(msgs[currentMilestone], 'success'), 500);
+      }
     }
-    dispatch({ type: 'IMPORT_DATA', days: data.days, wishlist: data.wishlist });
-    budgetDispatch({ type: 'IMPORT_BUDGET', state: data.budget });
-    setShowImportModal(false);
-    setImportText('');
-    setImportError('');
+  }, [progressPct, totalActivities, showToast]);
+
+  // Auto-scroll karuzeli co 5s
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setPhotoIndex((i) => (i + 1) % JAPAN_PHOTOS.length);
+      setPhotoLoaded(false);
+    }, 5000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Zamknij hint pierwszej wizyty
+  const dismissHint = () => {
+    setShowHint(false);
+    localStorage.setItem('japan2026_visited', '1');
   };
 
   return (
     <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-      <Header title="Japonia 2026 🇯🇵" subtitle="Asystent Podróży" />
+      <Header title="Japonia 2026 🇯🇵" subtitle={`${greeting.jp} · ${greeting.pl}`} />
       <div className="page-content" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
 
-        {/* Countdown card */}
-        <div className="card" style={{
-          background: 'linear-gradient(135deg, #D97706 0%, #DC2626 100%)',
+        {/* Hint pierwszej wizyty */}
+        {showHint && (
+          <div className="card first-visit-hint" style={{ position: 'relative' }}>
+            <button onClick={dismissHint} style={{
+              position: 'absolute', top: 8, right: 8, background: 'none', border: 'none',
+              cursor: 'pointer', color: 'var(--color-text-muted)', padding: 4,
+            }}>
+              <X size={16} />
+            </button>
+            <div style={{ fontWeight: 700, marginBottom: 8, fontSize: 15 }}>Witaj w asystencie podróży!</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, color: 'var(--color-text-muted)', lineHeight: 1.5 }}>
+              <span>📅 <strong>Plan</strong> — zaplanuj aktywności na każdy dzień</span>
+              <span>💰 <strong>Budżet</strong> — śledź wydatki w JPY i PLN</span>
+              <span>🧳 <strong>Bagaż</strong> — lista rzeczy do spakowania</span>
+            </div>
+          </div>
+        )}
+
+        {/* Karuzela zdjęć Japonii */}
+        <div style={{ position: 'relative', borderRadius: 16, overflow: 'hidden', height: 200, background: '#1a1a2e', flexShrink: 0 }}>
+          {/* Zdjęcie */}
+          <img
+            key={photoIndex}
+            src={JAPAN_PHOTOS[photoIndex].url}
+            alt={JAPAN_PHOTOS[photoIndex].caption}
+            onLoad={() => setPhotoLoaded(true)}
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              display: 'block',
+              opacity: photoLoaded ? 1 : 0,
+              transition: 'opacity 0.6s ease',
+            }}
+          />
+          {/* Gradient overlay */}
+          <div style={{
+            position: 'absolute', inset: 0,
+            background: 'linear-gradient(to bottom, transparent 40%, rgba(0,0,0,0.65) 100%)',
+            pointerEvents: 'none',
+          }} />
+          {/* Caption */}
+          <div style={{
+            position: 'absolute', bottom: 10, left: 14, right: 14,
+            display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between',
+          }}>
+            <span style={{ color: 'white', fontWeight: 600, fontSize: 14, textShadow: '0 1px 4px rgba(0,0,0,0.6)' }}>
+              {JAPAN_PHOTOS[photoIndex].caption}
+            </span>
+            <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11 }}>
+              {JAPAN_PHOTOS[photoIndex].credit}
+            </span>
+          </div>
+          {/* Dots */}
+          <div style={{
+            position: 'absolute', top: 10, right: 12,
+            display: 'flex', gap: 5, alignItems: 'center',
+          }}>
+            {JAPAN_PHOTOS.map((_, i) => (
+              <button
+                key={i}
+                onClick={() => { setPhotoIndex(i); setPhotoLoaded(false); }}
+                style={{
+                  width: i === photoIndex ? 18 : 6,
+                  height: 6,
+                  borderRadius: 3,
+                  background: i === photoIndex ? 'white' : 'rgba(255,255,255,0.45)',
+                  border: 'none',
+                  padding: 0,
+                  cursor: 'pointer',
+                  transition: 'width 0.3s ease, background 0.3s ease',
+                }}
+              />
+            ))}
+          </div>
+          {/* Unsplash attribution */}
+          <div style={{
+            position: 'absolute', bottom: 4, right: 8,
+            fontSize: 9, color: 'rgba(255,255,255,0.4)',
+          }}>
+            © Unsplash
+          </div>
+        </div>
+
+        {/* Countdown card z momiji */}
+        <div className="card countdown-card" style={{
           border: 'none',
           color: 'white',
           textAlign: 'center',
           padding: '24px 16px',
+          position: 'relative',
+          overflow: 'hidden',
         }}>
-          <div style={{ fontSize: 13, opacity: 0.85, marginBottom: 8 }}>
-            5–18 listopada 2026 · Tokio & Kioto
+          {/* Momiji leaves */}
+          <div className="momiji-container">
+            <div className="momiji-leaf" style={{ '--leaf-left': '15%', '--leaf-delay': '0s', '--leaf-duration': '9s' } as React.CSSProperties} />
+            <div className="momiji-leaf" style={{ '--leaf-left': '55%', '--leaf-delay': '3s', '--leaf-duration': '11s' } as React.CSSProperties} />
+            <div className="momiji-leaf" style={{ '--leaf-left': '80%', '--leaf-delay': '6s', '--leaf-duration': '10s' } as React.CSSProperties} />
           </div>
-          {isBeforeTrip && (
-            <>
-              <div style={{ fontSize: 56, fontWeight: 800, lineHeight: 1 }}>{daysUntil}</div>
-              <div style={{ fontSize: 18, fontWeight: 600, marginTop: 4 }}>
-                {daysUntil === 1 ? 'dzień do wyjazdu' : daysUntil < 5 ? 'dni do wyjazdu' : 'dni do wyjazdu'}
-              </div>
-            </>
-          )}
-          {isDuringTrip && (
-            <>
-              <div style={{ fontSize: 48, fontWeight: 800, lineHeight: 1 }}>Dzień {currentDayNum}/14</div>
-              <div style={{ fontSize: 16, marginTop: 4, opacity: 0.9 }}>
-                {format(today, 'EEEE, d MMMM', { locale: pl })}
-              </div>
-            </>
-          )}
-          {isAfterTrip && (
-            <>
-              <div style={{ fontSize: 36, fontWeight: 800 }}>またね！</div>
-              <div style={{ fontSize: 16, marginTop: 4 }}>Mata ne! Do następnego razu, Japonii 🙏</div>
-            </>
-          )}
-          <div style={{ marginTop: 12, fontSize: 24 }}>🍁 ⛩️ 🗾</div>
+
+          <div style={{ position: 'relative', zIndex: 1 }}>
+            <div style={{ fontSize: 13, opacity: 0.85, marginBottom: 8 }}>
+              5–18 listopada 2026 · Tokio & Kioto
+            </div>
+            {isBeforeTrip && (
+              <>
+                <div className={daysUntil <= 90 ? 'countdown-pulse' : ''} style={{ fontSize: 56, fontWeight: 800, lineHeight: 1 }}>{daysUntil}</div>
+                <div style={{ fontSize: 18, fontWeight: 600, marginTop: 4 }}>
+                  {daysUntil === 1 ? 'dzień do wyjazdu' : 'dni do wyjazdu'}
+                </div>
+                {daysUntil <= 30 && (
+                  <div style={{ fontSize: 13, opacity: 0.8, marginTop: 6 }}>
+                    もうすぐ · Już wkrótce!
+                  </div>
+                )}
+              </>
+            )}
+            {isDuringTrip && (
+              <>
+                <div style={{ fontSize: 48, fontWeight: 800, lineHeight: 1 }}>Dzień {currentDayNum}/14</div>
+                <div style={{ fontSize: 16, marginTop: 4, opacity: 0.9 }}>
+                  {format(today, 'EEEE, d MMMM', { locale: pl })}
+                </div>
+              </>
+            )}
+            {isAfterTrip && (
+              <>
+                <div style={{ fontSize: 36, fontWeight: 800 }}>またね！</div>
+                <div style={{ fontSize: 16, marginTop: 4 }}>Mata ne! Do następnego razu, Japonii 🙏</div>
+              </>
+            )}
+            <div style={{ marginTop: 12, fontSize: 24 }}>🍁 ⛩️ 🗾</div>
+          </div>
         </div>
 
         {/* Progress */}
@@ -127,19 +395,90 @@ export function DashboardPage() {
           </div>
         </div>
 
+        {/* Stats Summary */}
+        <div className="card" style={{ padding: '12px 16px' }}>
+          <div style={{ fontWeight: 600, fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 10, textAlign: 'center', letterSpacing: '0.05em' }}>
+            統計 · Statystyki
+          </div>
+          <div className="stats-grid">
+            <div className="stats-item">
+              <span className="stats-value">{safeDays.filter((d) => d.activities.length > 0).length}/{safeDays.length}</span>
+              <span className="stats-label">Dni z planem</span>
+            </div>
+            <div className="stats-item">
+              <span className="stats-value">{completedActivities}/{totalActivities}</span>
+              <span className="stats-label">Aktywności</span>
+            </div>
+            <div className="stats-item">
+              <span className="stats-value">{packingPct}%</span>
+              <span className="stats-label">Spakowane</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Achievements */}
+        <div className="card">
+          <div className="noren-header" style={{ fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
+            実績 · Osiągnięcia
+          </div>
+          <div className="achievement-grid">
+            {ACHIEVEMENTS.map((badge) => {
+              const isUnlocked = unlockedIds.has(badge.id);
+              const isNew = newBadgeId === badge.id;
+              return (
+                <div
+                  key={badge.id}
+                  className={`achievement-badge${isUnlocked ? ' badge-unlocked' : ' badge-locked'}${isNew ? ' badge-new' : ''}`}
+                  style={isUnlocked ? ({ '--badge-color': badge.color, '--badge-glow': badge.glowColor } as React.CSSProperties) : undefined}
+                  title={badge.description}
+                >
+                  <span style={{ fontSize: 18, lineHeight: 1 }}>{badge.emoji}</span>
+                  <span style={{ fontSize: 15, fontWeight: 800, color: isUnlocked ? badge.color : undefined, lineHeight: 1 }}>{badge.kanji}</span>
+                  <span style={{ fontSize: 9, fontWeight: 600, color: 'var(--color-text-muted)', textAlign: 'center', lineHeight: 1.2 }}>{badge.name}</span>
+                  <span style={{ fontSize: 8, color: 'var(--color-text-muted)', opacity: 0.6, lineHeight: 1 }}>{badge.reading}</span>
+                </div>
+              );
+            })}
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 10, textAlign: 'center' }}>
+            {unlockedIds.size}/{ACHIEVEMENTS.length} odznak odblokowanych
+          </div>
+        </div>
+
+        {/* Packing progress — widoczny gdy <7 dni do wyjazdu i pakowanie <100% */}
+        {isBeforeTrip && daysUntil <= 7 && packingPct < 100 && packingTotal > 0 && (
+          <div className="card" onClick={() => navigate('/bagaz')} style={{ cursor: 'pointer', borderLeft: '3px solid var(--color-primary)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <span style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Package size={16} color="var(--color-primary)" />
+                Spakuj się!
+              </span>
+              <span style={{ fontSize: 13, color: 'var(--color-primary)', fontWeight: 700 }}>
+                {packingPct}%
+              </span>
+            </div>
+            <div className="progress-bar">
+              <div className="progress-bar-fill" style={{ width: `${packingPct}%` }} />
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 4 }}>
+              Wyjazd za {daysUntil} {daysUntil === 1 ? 'dzień' : 'dni'} — {packedCount}/{packingTotal} spakowane
+            </div>
+          </div>
+        )}
+
         {/* Wishlist count */}
-        {wishlist.length > 0 && (
+        {safeWishlist.length > 0 && (
           <div className="card" onClick={() => navigate('/plan')} style={{ cursor: 'pointer' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
                 📌 Chcę odwiedzić
               </span>
               <span style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-primary)' }}>
-                {wishlist.length}
+                {safeWishlist.length}
               </span>
             </div>
             <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 4 }}>
-              {wishlist.length === 1 ? '1 miejsce' : `${wishlist.length} miejsc`} do zaplanowania
+              {safeWishlist.length === 1 ? '1 miejsce' : `${safeWishlist.length} miejsc`} do zaplanowania
             </div>
           </div>
         )}
@@ -147,37 +486,71 @@ export function DashboardPage() {
         {/* Weather info */}
         <div className="card">
           <div style={{ fontWeight: 600, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
-            ☁️ Pogoda w listopadzie
+            {isDuringTrip ? '🌤️ Pogoda teraz' : '🍁 Pogoda w listopadzie'}
+            {isDuringTrip && !weatherLoading && weather.some((w) => w.isLive) && (
+              <span style={{
+                marginLeft: 'auto', fontSize: 11, fontWeight: 600,
+                background: '#059669', color: 'white',
+                padding: '2px 7px', borderRadius: 20,
+              }}>LIVE</span>
+            )}
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            {[
-              { city: '🗼 Tokio', temp: '8–17°C', desc: 'Słonecznie, sucho' },
-              { city: '⛩️ Kioto', temp: '6–15°C', desc: 'Chłodniej wieczorem' },
-            ].map((w) => (
-              <div key={w.city} style={{
-                background: 'var(--color-bg)',
-                borderRadius: 10,
-                padding: '10px 12px',
-                border: '1px solid var(--color-border)',
-              }}>
-                <div style={{ fontWeight: 600, fontSize: 14 }}>{w.city}</div>
-                <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--color-primary)', margin: '2px 0' }}>{w.temp}</div>
-                <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>{w.desc}</div>
-              </div>
-            ))}
-          </div>
+          {weatherLoading ? (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              {[0, 1].map((i) => (
+                <div key={i} style={{
+                  background: 'var(--color-bg)', borderRadius: 10, padding: '10px 12px',
+                  border: '1px solid var(--color-border)', height: 76,
+                }} className="skeleton-card" />
+              ))}
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              {weather.map((w) => (
+                <div key={w.city} style={{
+                  background: 'var(--color-bg)',
+                  borderRadius: 10,
+                  padding: '10px 12px',
+                  border: '1px solid var(--color-border)',
+                }}>
+                  <div style={{ fontWeight: 600, fontSize: 14 }}>{w.emoji} {w.city}</div>
+                  {w.isLive && w.tempCurrent !== null ? (
+                    <>
+                      <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--color-primary)', margin: '2px 0', lineHeight: 1.1 }}>
+                        {w.tempCurrent}°C
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+                        {w.tempMin}–{w.tempMax}°C · {w.description}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--color-primary)', margin: '2px 0' }}>
+                        {w.tempMin}–{w.tempMax}°C
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>{w.description}</div>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
           <div style={{ marginTop: 8, fontSize: 13, color: 'var(--color-text-muted)' }}>
             🍁 Szczyt sezonu momiji – idealna pora roku!
           </div>
         </div>
 
         {/* Budget summary */}
-        {state.expenses.length > 0 && (
-          <div className="card">
+        {(state?.budget ?? 0) > 0 && (
+          <div className="card" onClick={() => navigate('/budzet')} style={{ cursor: 'pointer' }}>
             <div style={{ fontWeight: 600, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
-              💰 Budżet
+              <Wallet size={16} color="var(--color-primary)" />
+              Budżet
+              <span style={{ marginLeft: 'auto', fontSize: 13, fontWeight: 400, color: 'var(--color-text-muted)' }}>
+                {budgetPct}%
+              </span>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
               <div style={{ textAlign: 'center' }}>
                 <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Wydano</div>
                 <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-accent)' }}>
@@ -191,11 +564,20 @@ export function DashboardPage() {
                 </div>
               </div>
             </div>
+            <div className="progress-bar">
+              <div className="progress-bar-fill" style={{
+                width: `${budgetPct}%`,
+                background: totalSpentPLN > (state?.budget ?? 0) ? '#DC2626' : 'var(--color-primary)',
+              }} />
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 4 }}>
+              z {state?.budget ?? 0} zł całkowitego budżetu
+            </div>
           </div>
         )}
 
         {/* Quick actions */}
-        <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--color-text-muted)', paddingLeft: 2 }}>
+        <div className="noren-header" style={{ fontWeight: 600, fontSize: 14, color: 'var(--color-text-muted)' }}>
           SZYBKI DOSTĘP
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
@@ -205,7 +587,7 @@ export function DashboardPage() {
             { icon: <Wallet size={22} />, label: 'Budżet', to: '/budzet' },
             { icon: <Map size={22} />, label: 'Mapa', to: '/mapa' },
             { icon: <Info size={22} />, label: 'Info', to: '/info' },
-            { icon: <span style={{ fontSize: 22 }}>⛩️</span>, label: 'Etykieta', to: '/info' },
+            { icon: <Package size={22} />, label: 'Bagaż', to: '/bagaz' },
           ].map((item) => (
             <button
               key={item.label}
@@ -227,50 +609,49 @@ export function DashboardPage() {
           ))}
         </div>
 
-        {/* Share / Import */}
-        <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--color-text-muted)', paddingLeft: 2, marginTop: 4 }}>
-          UDOSTĘPNIANIE DANYCH
+        {/* Sync / Room */}
+        <div className="noren-header" style={{ fontWeight: 600, fontSize: 14, color: 'var(--color-text-muted)', marginTop: 4 }}>
+          SYNCHRONIZACJA
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          <button
-            className="card btn"
-            onClick={() => setShowShareModal(true)}
-            style={{
-              flexDirection: 'column',
-              gap: 6,
-              padding: '14px 8px',
-              color: 'var(--color-primary)',
-              fontWeight: 600,
-              fontSize: 12,
-              border: '1px solid var(--color-border)',
-            }}
-          >
-            <Share2 size={22} />
-            <span style={{ color: 'var(--color-text)' }}>Eksportuj</span>
-          </button>
-          <button
-            className="card btn"
-            onClick={() => setShowImportModal(true)}
-            style={{
-              flexDirection: 'column',
-              gap: 6,
-              padding: '14px 8px',
-              color: 'var(--color-primary)',
-              fontWeight: 600,
-              fontSize: 12,
-              border: '1px solid var(--color-border)',
-            }}
-          >
-            <Download size={22} />
-            <span style={{ color: 'var(--color-text)' }}>Importuj</span>
-          </button>
-        </div>
+        <button
+          className="card btn"
+          onClick={() => setShowRoomModal(true)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            padding: '14px 16px',
+            border: '1px solid var(--color-border)',
+            textAlign: 'left',
+          }}
+        >
+          <Users size={22} color="var(--color-primary)" />
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--color-text)' }}>
+              {roomCode ? 'Połączono z pokojem' : 'Synchronizuj ze współpodróżnymi'}
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 2 }}>
+              {roomCode
+                ? <>Kod: <span style={{ fontFamily: 'monospace', fontWeight: 700, letterSpacing: 2 }}>{roomCode}</span> · {isConnected ? 'Online' : 'Offline'}</>
+                : 'Utwórz lub dołącz do pokoju'}
+            </div>
+          </div>
+          {roomCode && (
+            <div style={{
+              width: 8,
+              height: 8,
+              borderRadius: '50%',
+              background: isConnected ? '#059669' : '#9CA3AF',
+              flexShrink: 0,
+            }} />
+          )}
+        </button>
 
-        {/* Tips */}
+        {/* Rotating tip */}
         <div className="card" style={{ borderLeft: '3px solid var(--color-primary)' }}>
-          <div style={{ fontWeight: 600, marginBottom: 6 }}>💡 Wskazówka dnia</div>
+          <div style={{ fontWeight: 600, marginBottom: 6 }}>{tip.emoji} Wskazówka dnia</div>
           <div style={{ fontSize: 14, color: 'var(--color-text-muted)', lineHeight: 1.6 }}>
-            Kup Suica w Apple Wallet przed wyjazdem lub na lotnisku. To klucz do metra, autobusów i konbini w całej Japonii!
+            {tip.text}
           </div>
         </div>
 
@@ -284,68 +665,8 @@ export function DashboardPage() {
 
       </div>
 
-      {/* Share modal */}
-      {showShareModal && (
-        <div className="modal-overlay" onClick={() => setShowShareModal(false)}>
-          <div className="modal-sheet" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-handle" />
-            <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 16 }}>Eksportuj dane</div>
-            <div style={{ fontSize: 14, color: 'var(--color-text-muted)', marginBottom: 16, lineHeight: 1.6 }}>
-              Eksportuje cały plan podróży, listę życzeń i budżet. Udostępnij współpodróżnym lub zapisz jako kopię zapasową.
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <button className="btn btn-primary" onClick={handleExport} style={{ width: '100%' }}>
-                <Share2 size={16} />
-                {copied ? '✓ Skopiowano!' : 'Kopiuj do schowka'}
-              </button>
-              <button className="btn btn-secondary" onClick={handleDownload} style={{ width: '100%' }}>
-                <Download size={16} />
-                Pobierz plik .json
-              </button>
-              <button className="btn btn-ghost" onClick={() => setShowShareModal(false)} style={{ width: '100%' }}>
-                Zamknij
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Import modal */}
-      {showImportModal && (
-        <div className="modal-overlay" onClick={() => setShowImportModal(false)}>
-          <div className="modal-sheet" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-handle" />
-            <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 16 }}>Importuj dane</div>
-            <div style={{ fontSize: 14, color: 'var(--color-text-muted)', marginBottom: 12, lineHeight: 1.6 }}>
-              Wklej dane JSON otrzymane od współpodróżnego. Uwaga: zastąpi to istniejące dane!
-            </div>
-            <textarea
-              className="input"
-              value={importText}
-              onChange={(e) => { setImportText(e.target.value); setImportError(''); }}
-              placeholder='Wklej JSON tutaj...'
-              rows={6}
-              style={{ resize: 'none', fontFamily: 'monospace', fontSize: 12 }}
-            />
-            {importError && (
-              <div style={{ color: '#DC2626', fontSize: 13, marginTop: 6 }}>{importError}</div>
-            )}
-            <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
-              <button className="btn btn-secondary" onClick={() => setShowImportModal(false)} style={{ flex: 1 }}>
-                Anuluj
-              </button>
-              <button
-                className="btn btn-primary"
-                onClick={handleImport}
-                style={{ flex: 1 }}
-                disabled={!importText.trim()}
-              >
-                Importuj
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Room modal */}
+      {showRoomModal && <RoomModal onClose={() => setShowRoomModal(false)} />}
     </div>
   );
 }

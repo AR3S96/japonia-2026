@@ -1,5 +1,6 @@
 import { Moon, Sun } from 'lucide-react';
 import { useSettings } from '../context/SettingsContext';
+import { SyncIndicator } from './SyncIndicator';
 
 interface HeaderProps {
   title: string;
@@ -15,9 +16,12 @@ export function Header({ title, subtitle }: HeaderProps) {
         <div style={{ fontWeight: 700, fontSize: 17, color: 'var(--color-text)', lineHeight: 1.2 }}>
           {title}
         </div>
-        {subtitle && (
-          <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>{subtitle}</div>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {subtitle && (
+            <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>{subtitle}</div>
+          )}
+          <SyncIndicator />
+        </div>
       </div>
       <button
         className="btn btn-ghost"

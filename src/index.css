@@ -1,44 +1,47 @@
 @import "tailwindcss";
 
 :root {
-  --color-primary: #D97706;
-  --color-primary-dark: #B45309;
-  --color-accent: #DC2626;
-  --color-bg: #FFF7ED;
-  --color-card: rgba(255, 255, 255, 0.68);
-  --color-card-solid: #FFFFFF;
-  --color-text: #1C1917;
-  --color-text-muted: #78716C;
-  --color-border: rgba(215, 119, 6, 0.15);
-  --color-border-solid: #E7E5E4;
-  --color-nav: rgba(255, 255, 255, 0.78);
+  /* ── TORII & ZŁOTO — zachodnie słońce nad świątynią ── */
+  --color-primary: #C2410C;           /* burnt sienna — płonące torii */
+  --color-primary-dark: #9A3412;
+  --color-accent: #DC2626;            /* cynober — jak pieczęć hanko */
+  --color-bg: #FDF6EC;                /* washi gold — ciepły papier ryżowy */
+  --color-card: rgba(255, 251, 240, 0.74);
+  --color-card-solid: #FFFBF0;
+  --color-text: #1C1410;              /* atrament sumi — ciepła czerń */
+  --color-text-muted: #6B5440;        /* stara herbata */
+  --color-border: rgba(194, 65, 12, 0.13);
+  --color-border-solid: #E8DDD0;
+  --color-nav: rgba(255, 251, 242, 0.84);
   --bottom-nav-height: 64px;
   --safe-area-bottom: env(safe-area-inset-bottom, 0px);
-  --blur: 24px;
-  --glass-shadow: 0 4px 24px rgba(217, 119, 6, 0.10), 0 1px 4px rgba(0,0,0,0.06);
-  --glass-edge: inset 0 1px 0 0 rgba(255,255,255,0.50),
-               inset 0 -1px 0 0 rgba(0,0,0,0.04);
-  --glass-edge-strong: inset 0 1px 1px 0 rgba(255,255,255,0.60),
-                       inset 0 -1px 2px 0 rgba(0,0,0,0.06);
+  --blur: 22px;
+  --glass-shadow: 0 4px 24px rgba(194, 65, 12, 0.10), 0 1px 4px rgba(0,0,0,0.05);
+  --glass-edge: inset 0 1px 0 0 rgba(255, 220, 150, 0.40),
+               inset 0 -1px 0 0 rgba(120, 40, 0, 0.05);
+  --glass-edge-strong: inset 0 1px 1px 0 rgba(255, 220, 150, 0.55),
+                       inset 0 -1px 2px 0 rgba(120, 40, 0, 0.08);
 }
 
 [data-theme="dark"] {
-  --color-primary: #F59E0B;
-  --color-primary-dark: #D97706;
-  --color-accent: #EF4444;
-  --color-bg: #0B1120;
-  --color-card: rgba(30, 41, 59, 0.72);
-  --color-card-solid: #1E293B;
-  --color-text: #F1F5F9;
+  /* ── NOCNE TOKIO ─────────────────────────────── */
+  --color-primary: #0EA5E9;       /* electric blue — neon */
+  --color-primary-dark: #0284C7;
+  --color-accent: #D946EF;        /* neon magenta */
+  --color-bg: #07090F;            /* głęboka czerń */
+  --color-card: rgba(8, 14, 28, 0.75);
+  --color-card-solid: #080E1C;
+  --color-text: #E2E8F0;          /* chłodna biel */
   --color-text-muted: #94A3B8;
-  --color-border: rgba(241, 245, 249, 0.09);
-  --color-border-solid: #334155;
-  --color-nav: rgba(15, 23, 42, 0.82);
-  --glass-shadow: 0 4px 24px rgba(0,0,0,0.35), 0 1px 4px rgba(0,0,0,0.2);
-  --glass-edge: inset 0 1px 0 0 rgba(255,255,255,0.07),
-               inset 0 -1px 0 0 rgba(0,0,0,0.18);
-  --glass-edge-strong: inset 0 1px 1px 0 rgba(255,255,255,0.10),
-                       inset 0 -1px 2px 0 rgba(0,0,0,0.22);
+  --color-border: rgba(14, 165, 233, 0.10);   /* subtelny niebieski */
+  --color-border-solid: #1E3A5F;
+  --color-nav: rgba(4, 6, 15, 0.88);
+  --blur: 28px;                   /* smoky glass */
+  --glass-shadow: 0 0 20px rgba(14, 165, 233, 0.12), 0 4px 24px rgba(0,0,0,0.5);
+  --glass-edge: inset 0 1px 0 0 rgba(14, 165, 233, 0.08),
+               inset 0 -1px 0 0 rgba(0,0,0,0.30);
+  --glass-edge-strong: inset 0 1px 1px 0 rgba(14, 165, 233, 0.12),
+                       inset 0 -1px 2px 0 rgba(0,0,0,0.35);
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -52,31 +55,43 @@ html, body {
   line-height: 1.5;
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior: none;
+  height: 100%;
+  overflow: hidden;
+  /* iOS PWA z viewport-fit=cover: tło musi ciągnąć się za safe areas */
+  background: var(--color-bg);
 }
 
 /* ── TŁO Z GRADIENTAMI (źródło dla blur) ─────────── */
 #root {
-  min-height: 100dvh;
+  /* fixed inset:0 pokrywa CAŁY fizyczny ekran, włącznie z safe areas na iOS PWA */
+  position: fixed;
+  inset: 0;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
   background: var(--color-bg);
   background-image:
-    radial-gradient(ellipse 90% 70% at 15% -15%, rgba(217,119,6,0.22) 0%, transparent 65%),
-    radial-gradient(ellipse 60% 50% at 90% 10%, rgba(220,38,38,0.11) 0%, transparent 55%),
-    radial-gradient(ellipse 50% 40% at 70% 55%, rgba(147,51,234,0.06) 0%, transparent 50%),
-    radial-gradient(ellipse 55% 45% at 25% 75%, rgba(6,182,212,0.05) 0%, transparent 50%),
-    radial-gradient(ellipse 70% 60% at 50% 115%, rgba(217,119,6,0.14) 0%, transparent 60%);
+    /* Terakota/sienna — górny lewy, jak płonące torii */
+    radial-gradient(ellipse 75% 60% at 5% 0%,    rgba(194, 65, 12, 0.18) 0%, transparent 60%),
+    /* Złoto — górny prawy, zachód słońca */
+    radial-gradient(ellipse 55% 50% at 100% 0%,  rgba(245, 158, 11, 0.13) 0%, transparent 55%),
+    /* Cynober — prawy środek, akcent pieczęci */
+    radial-gradient(ellipse 40% 40% at 98% 55%,  rgba(220, 38, 38, 0.08) 0%, transparent 50%),
+    /* Ciepły szafran — dolny środek, jak blask lamionów */
+    radial-gradient(ellipse 80% 45% at 50% 115%, rgba(180, 83, 9, 0.14) 0%, transparent 55%),
+    /* Delikatna mgiełka terakoty — centrum */
+    radial-gradient(ellipse 60% 50% at 35% 55%,  rgba(194, 65, 12, 0.06) 0%, transparent 60%);
   background-attachment: fixed;
-  position: relative;
 }
 
 [data-theme="dark"] #root {
+  /* Nocne Tokio — cityscape: fioletowy horyzont, neony po bokach */
   background-image:
-    radial-gradient(ellipse 90% 70% at 15% -15%, rgba(245,158,11,0.16) 0%, transparent 65%),
-    radial-gradient(ellipse 60% 50% at 90% 10%, rgba(239,68,68,0.09) 0%, transparent 55%),
-    radial-gradient(ellipse 50% 40% at 70% 55%, rgba(147,51,234,0.06) 0%, transparent 50%),
-    radial-gradient(ellipse 55% 45% at 25% 75%, rgba(6,182,212,0.04) 0%, transparent 50%),
-    radial-gradient(ellipse 70% 60% at 50% 115%, rgba(245,158,11,0.08) 0%, transparent 60%);
+    radial-gradient(ellipse 120% 40% at 50% 110%, rgba(109, 40, 217, 0.28) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 50% at -5% 70%,  rgba(14, 165, 233, 0.18) 0%, transparent 55%),
+    radial-gradient(ellipse 50% 40% at 105% 60%, rgba(217, 70, 239, 0.14) 0%, transparent 50%),
+    radial-gradient(ellipse 80% 60% at 50% 40%,  rgba(30, 58, 138, 0.22) 0%, transparent 65%),
+    radial-gradient(ellipse 100% 50% at 50% 0%,  rgba(14, 165, 233, 0.05) 0%, transparent 50%);
 }
 
 /* Subtelna animowana warstwa ambient light */
@@ -86,14 +101,76 @@ html, body {
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background: radial-gradient(ellipse 70% 50% at 50% 40%, rgba(217,119,6,0.07) 0%, transparent 70%);
+  /* Torii & Złoto — ciepły blask zachodzącego słońca */
+  background: radial-gradient(ellipse 70% 50% at 50% 35%,
+    rgba(245, 158, 11, 0.07) 0%,
+    rgba(194, 65, 12, 0.04) 50%,
+    transparent 70%);
   animation: ambientDrift 25s ease-in-out infinite alternate;
   will-change: transform;
 }
 [data-theme="dark"] #root::before {
-  background: radial-gradient(ellipse 70% 50% at 50% 40%, rgba(245,158,11,0.04) 0%, transparent 70%);
+  /* Pulsujący neon ambient — jak mgła z odległych neonów */
+  background: radial-gradient(ellipse 60% 40% at 50% 60%,
+    rgba(14, 165, 233, 0.06) 0%,
+    rgba(217, 70, 239, 0.04) 40%,
+    transparent 70%);
 }
 #root > * { position: relative; z-index: 1; }
+
+/* ── NOCNE TOKIO — SMOKY GLASS OVERRIDES ────────────── */
+[data-theme="dark"] .card {
+  backdrop-filter: blur(var(--blur)) saturate(1.3) brightness(0.95);
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(1.3) brightness(0.95);
+}
+[data-theme="dark"] .bottom-nav,
+[data-theme="dark"] .top-header {
+  backdrop-filter: blur(var(--blur)) saturate(1.4) brightness(0.90);
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(1.4) brightness(0.90);
+}
+
+/* ── NOCNE TOKIO — OVERRIDES HARDKODOWANYCH KOLORÓW ─── */
+/* Day chip ukończony: electric blue zamiast amber */
+[data-theme="dark"] .day-chip.day-complete {
+  border-color: #0EA5E9 !important;
+  box-shadow: 0 0 0 1px rgba(14, 165, 233, 0.25), 0 0 8px rgba(14, 165, 233, 0.15) !important;
+}
+[data-theme="dark"] .day-chip.day-complete:not(.active) {
+  color: #0EA5E9 !important;
+}
+/* Hanko stamp: neon magenta zamiast czerwieni */
+[data-theme="dark"] .hanko-stamp {
+  border-color: #D946EF !important;
+  color: #D946EF !important;
+}
+/* Noren header: electric blue kreska */
+[data-theme="dark"] .noren-header::after {
+  background: linear-gradient(90deg, #0EA5E9 38%, transparent 38%, transparent 62%, #0EA5E9 62%);
+  opacity: 0.4;
+}
+/* First visit hint: niebieski zamiast amber */
+[data-theme="dark"] .first-visit-hint {
+  border-color: #0EA5E9 !important;
+  background: rgba(14, 165, 233, 0.06) !important;
+}
+
+/* ── COUNTDOWN CARD ──────────────────────────────────── */
+.countdown-card {
+  /* Torii & Złoto: terakota→złoto jak zachód nad świątynią */
+  background: linear-gradient(135deg, #C2410C 0%, #F59E0B 65%, #DC2626 100%) !important;
+}
+[data-theme="dark"] .countdown-card {
+  background: linear-gradient(155deg,
+    #0A0F24 0%,
+    #1a1040 30%,
+    #0c1a3a 60%,
+    #050810 100%
+  ) !important;
+  box-shadow:
+    inset 0 0 60px rgba(14, 165, 233, 0.08),
+    inset 0 -20px 40px rgba(109, 40, 217, 0.12),
+    0 0 20px rgba(14, 165, 233, 0.10) !important;
+}
 
 @keyframes ambientDrift {
   0%   { transform: translate(-4%, -4%) scale(1); opacity: 0.5; }
@@ -118,6 +195,7 @@ html, body {
   position: relative;
   overflow: clip;
   overflow-clip-margin: 0px;
+  flex-shrink: 0;
 }
 .card::before {
   content: '';
@@ -136,22 +214,31 @@ html, body {
 .bottom-nav {
   background: var(--color-nav);
   border-top: 1px solid var(--color-border);
-  height: calc(var(--bottom-nav-height) + var(--safe-area-bottom));
-  padding-bottom: var(--safe-area-bottom);
+  /* Nie fixed — część flex flow, flex-shrink:0 by zawsze był widoczny */
+  flex-shrink: 0;
+  height: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px));
+  padding-bottom: env(safe-area-inset-bottom, 0px);
   backdrop-filter: blur(var(--blur)) saturate(1.9) brightness(1.04);
   -webkit-backdrop-filter: blur(var(--blur)) saturate(1.9) brightness(1.04);
   box-shadow: 0 -1px 0 0 var(--color-border), var(--glass-edge);
   transition: background 0.2s, border-color 0.2s;
+  /* z-index nadal potrzebny dla sliding indicator i glass effect */
+  position: relative;
+  z-index: 50;
 }
 
 /* ── TOP HEADER ─────────────────────────────────────── */
 .top-header {
   background: var(--color-nav);
   border-bottom: 1px solid var(--color-border);
-  height: 56px;
+  /* safe-area-inset-top obsługuje notch / Dynamic Island na iOS */
+  padding-top: env(safe-area-inset-top, 0px);
+  height: calc(56px + env(safe-area-inset-top, 0px));
   display: flex;
-  align-items: center;
-  padding: 0 16px;
+  align-items: flex-end;
+  padding-left: 16px;
+  padding-right: 16px;
+  padding-bottom: 8px;
   position: sticky;
   top: 0;
   z-index: 40;
@@ -159,11 +246,13 @@ html, body {
   -webkit-backdrop-filter: blur(var(--blur)) saturate(1.9) brightness(1.04);
   box-shadow: 0 1px 0 0 var(--color-border), var(--glass-edge);
   transition: background 0.2s, border-color 0.2s;
+  flex-shrink: 0;
 }
 
 .page-content {
   padding: 16px;
-  padding-bottom: calc(var(--bottom-nav-height) + var(--safe-area-bottom) + 16px);
+  /* Nav jest teraz w flex flow pod contentem, nie trzeba rezerwować miejsca */
+  padding-bottom: 16px;
   flex: 1;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
@@ -205,7 +294,7 @@ html, body {
   justify-content: center;
   gap: 2px;
   flex: 1;
-  min-height: 44px;
+  height: var(--bottom-nav-height);
   padding: 6px 0;
   cursor: pointer;
   color: var(--color-text-muted);
@@ -350,6 +439,8 @@ select.input {
 
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.spin { animation: spin 1s linear infinite; }
 
 .leaflet-container { background: var(--color-bg) !important; }
 
@@ -367,7 +458,8 @@ select.input {
   box-shadow: var(--glass-shadow), var(--glass-edge);
   transition: background 0.2s, border-color 0.2s;
   position: relative;
-  overflow: hidden;
+  overflow: clip;
+  overflow-clip-margin: 0px;
 }
 .activity-item::before {
   content: '';
@@ -389,6 +481,7 @@ select.input {
   border-radius: 14px;
   padding: 14px;
   display: flex;
+  flex-shrink: 0;
   flex-direction: column;
   gap: 4px;
   backdrop-filter: blur(var(--blur)) saturate(1.7) brightness(1.05);
@@ -448,7 +541,239 @@ select.input {
   -webkit-backdrop-filter: blur(var(--blur)) saturate(1.9) brightness(1.04);
 }
 
+/* ── TOAST ──────────────────────────────────────────── */
+.toast {
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  backdrop-filter: blur(var(--blur)) saturate(1.7) brightness(1.05);
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(1.7) brightness(1.05);
+  box-shadow: var(--glass-shadow), var(--glass-edge);
+  pointer-events: auto;
+  animation: slideUp 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.toast[data-type="error"] {
+  border-color: rgba(220, 38, 38, 0.35);
+  background: rgba(254, 226, 226, 0.88);
+}
+[data-theme="dark"] .toast[data-type="error"] {
+  background: rgba(127, 29, 29, 0.72);
+  border-color: rgba(220, 38, 38, 0.45);
+}
+
 /* ── WISHLIST SECTION ───────────────────────────────── */
+/* ── SKELETON LOADING ──────────────────────────────── */
+.skeleton-card {
+  pointer-events: none;
+}
+.skeleton-line {
+  background: linear-gradient(
+    90deg,
+    var(--color-border) 25%,
+    var(--color-card-solid) 50%,
+    var(--color-border) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: 6px;
+}
+@keyframes shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ── EMPTY STATES ──────────────────────────────────── */
+.enso-circle {
+  width: 64px;
+  height: 64px;
+  border: 2px solid var(--color-border-solid);
+  border-radius: 50%;
+  margin: 0 auto 12px;
+  opacity: 0.35;
+  /* Imperfekcja wabi-sabi — nie-idealny okrąg */
+  border-top-left-radius: 48%;
+  border-bottom-right-radius: 52%;
+}
+
+.first-visit-hint {
+  border: 1.5px dashed var(--color-primary);
+  background: rgba(194, 65, 12, 0.05);
+  animation: fadeIn 0.3s ease;
+}
+
+/* ── TOAST SUCCESS ─────────────────────────────────── */
+.toast[data-type="success"] {
+  border-color: rgba(5, 150, 105, 0.35);
+  background: rgba(209, 250, 229, 0.88);
+}
+[data-theme="dark"] .toast[data-type="success"] {
+  background: rgba(6, 78, 59, 0.72);
+  border-color: rgba(5, 150, 105, 0.45);
+}
+
+/* ── CELEBRATIONS ──────────────────────────────────── */
+@keyframes checkPop {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.35); }
+  100% { transform: scale(1); }
+}
+.check-pop {
+  animation: checkPop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes completePulse {
+  0%   { background-color: rgba(5, 150, 105, 0); }
+  35%  { background-color: rgba(5, 150, 105, 0.12); }
+  100% { background-color: rgba(5, 150, 105, 0); }
+}
+.complete-pulse {
+  animation: completePulse 0.5s ease;
+}
+
+@keyframes warmGlow {
+  0%   { box-shadow: var(--glass-shadow), var(--glass-edge), 0 0 0 0 rgba(194,65,12,0.30); }
+  50%  { box-shadow: var(--glass-shadow), var(--glass-edge), 0 0 16px 4px rgba(194,65,12,0.12); }
+  100% { box-shadow: var(--glass-shadow), var(--glass-edge); }
+}
+.new-item-glow {
+  animation: slideUp 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), warmGlow 0.6s ease 0.2s;
+}
+
+@keyframes categoryFlash {
+  0%   { background-color: transparent; }
+  30%  { background-color: rgba(5, 150, 105, 0.15); }
+  100% { background-color: transparent; }
+}
+.category-complete-flash {
+  animation: categoryFlash 0.6s ease;
+}
+
+/* Terakota dzień chip — wszystkie aktywności ukończone (Torii & Złoto) */
+.day-chip.day-complete {
+  border-color: #C2410C;
+  box-shadow: 0 0 0 1px rgba(194, 65, 12, 0.28);
+}
+.day-chip.day-complete:not(.active) {
+  color: #C2410C;
+}
+
+/* ── JAPANESE CULTURAL ELEMENTS ────────────────────── */
+
+/* Momiji — spadające liście na countdown card */
+.momiji-container {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  border-radius: inherit;
+}
+.momiji-leaf {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background: rgba(255, 255, 255, 0.18);
+  clip-path: polygon(50% 0%, 0% 80%, 20% 100%, 50% 75%, 80% 100%, 100% 80%);
+  animation: fallLeaf var(--leaf-duration, 10s) ease-in-out infinite;
+  animation-delay: var(--leaf-delay, 0s);
+  left: var(--leaf-left, 20%);
+  top: -12px;
+  opacity: 0;
+}
+@keyframes fallLeaf {
+  0%   { transform: translate(0, 0) rotate(0deg); opacity: 0; }
+  8%   { opacity: 0.22; }
+  50%  { transform: translate(15px, 60px) rotate(120deg); opacity: 0.18; }
+  90%  { opacity: 0.12; }
+  100% { transform: translate(25px, 130px) rotate(240deg); opacity: 0; }
+}
+
+/* Noren — dekoracyjne podkreślenie sekcji */
+.noren-header {
+  position: relative;
+  text-align: center;
+  padding-left: 2px;
+}
+.noren-header::after {
+  content: '';
+  display: block;
+  margin: 5px auto 0;
+  width: 48px;
+  height: 2px;
+  background: linear-gradient(90deg, var(--color-primary) 38%, transparent 38%, transparent 62%, var(--color-primary) 62%);
+  opacity: 0.35;
+  border-radius: 1px;
+}
+
+/* Hanko pieczątka — ukończony dzień */
+.hanko-stamp {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: 1.5px solid #DC2626;
+  border-radius: 50%;
+  color: #DC2626;
+  font-size: 9px;
+  font-weight: 800;
+  transform: rotate(-3deg);
+  opacity: 0.75;
+  line-height: 1;
+}
+
+/* Japońskie dni tygodnia */
+.jp-weekday {
+  font-size: 8px;
+  opacity: 0.5;
+  line-height: 1;
+  margin-top: 1px;
+}
+.day-chip.active .jp-weekday {
+  opacity: 0.7;
+}
+
+/* ── PAGE TRANSITIONS ──────────────────────────────── */
+@keyframes pageEnter {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.page-enter {
+  animation: pageEnter 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+/* ── NAV INDICATOR ─────────────────────────────────── */
+.nav-indicator {
+  position: absolute;
+  top: 0;
+  height: 2.5px;
+  width: 32px;
+  background: var(--color-primary);
+  border-radius: 0 0 3px 3px;
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  pointer-events: none;
+}
+
+/* ── DAY CHIP SCROLL SNAP ──────────────────────────── */
+.day-selector-snap {
+  scroll-snap-type: x proximity;
+}
+.day-selector-snap .day-chip {
+  scroll-snap-align: center;
+}
+
+/* ── COUNTDOWN PULSE (30-90 days) ──────────────────── */
+@keyframes countdownPulse {
+  from { transform: scale(0.96); opacity: 0.6; }
+  to   { transform: scale(1); opacity: 1; }
+}
+.countdown-pulse {
+  animation: countdownPulse 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
 .wishlist-header {
   display: flex;
   align-items: center;
@@ -459,4 +784,106 @@ select.input {
   backdrop-filter: blur(var(--blur)) saturate(1.6);
   -webkit-backdrop-filter: blur(var(--blur)) saturate(1.6);
   border-bottom: 1px solid var(--color-border);
+}
+
+/* ── SUMI-E INK SPLASH ──────────────────────────────── */
+@keyframes inkSplash {
+  0%   { transform: scale(0); opacity: 0.7; clip-path: circle(0% at 50% 50%); }
+  40%  { opacity: 0.45; clip-path: circle(55% at 50% 50%); }
+  100% { transform: scale(2.2); opacity: 0; clip-path: circle(55% at 50% 50%); }
+}
+
+.ink-splash {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  animation: inkSplash 0.55s ease-out forwards;
+  z-index: 0;
+}
+
+/* ── ACHIEVEMENT BADGES ─────────────────────────────── */
+.achievement-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.achievement-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 4px 8px;
+  border-radius: 14px;
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  text-align: center;
+  position: relative;
+  overflow: clip;
+  min-width: 0;
+  flex-shrink: 0;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.achievement-badge.badge-locked {
+  opacity: 0.35;
+  filter: grayscale(1);
+}
+
+.achievement-badge.badge-unlocked {
+  border-color: var(--badge-color, var(--color-primary));
+  box-shadow: 0 0 10px var(--badge-glow, rgba(14, 165, 233, 0.20));
+}
+
+@keyframes badgeReveal {
+  0%   { transform: scale(0.85); opacity: 0; }
+  50%  { transform: scale(1.08); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes badgeGlow {
+  0%, 100% { box-shadow: 0 0 8px var(--badge-glow, rgba(14, 165, 233, 0.20)); }
+  50%       { box-shadow: 0 0 24px var(--badge-glow, rgba(14, 165, 233, 0.45)); }
+}
+
+.achievement-badge.badge-new {
+  animation:
+    badgeReveal 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
+    badgeGlow 1.2s ease-in-out 0.3s 2;
+}
+
+/* ── STATS SUMMARY ──────────────────────────────────── */
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 0;
+}
+
+.stats-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 8px 4px;
+  border-right: 1px solid var(--color-border);
+  text-align: center;
+}
+
+.stats-item:last-child {
+  border-right: none;
+}
+
+.stats-value {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--color-primary);
+  line-height: 1;
+}
+
+.stats-label {
+  font-size: 10px;
+  color: var(--color-text-muted);
+  font-weight: 500;
+  line-height: 1.3;
 }

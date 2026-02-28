@@ -1,9 +1,13 @@
-import { createContext, useContext, useEffect, useReducer } from 'react';
+import { createContext, useContext, useEffect, useReducer, useCallback, useRef } from 'react';
 import type { ReactNode } from 'react';
 import type { Expense, BudgetState } from '../types';
 import { DEFAULT_BUDGET_PLN, DEFAULT_EXCHANGE_RATE } from '../lib/constants';
 import { useIndexedDB } from '../hooks/useIndexedDB';
 import { fetchExchangeRate } from '../lib/exchangeRate';
+import { generateId } from '../lib/utils';
+import { useFirebaseSync } from '../hooks/useFirebaseSync';
+import { useSync } from './SyncContext';
+import { useToast } from './ToastContext';
 
 type BudgetAction =
   | { type: 'SET_STATE'; state: BudgetState }
@@ -29,7 +33,7 @@ function budgetReducer(state: BudgetState, action: BudgetAction): BudgetState {
         ...state,
         expenses: [
           ...state.expenses,
-          { ...action.expense, id: `exp-${Date.now()}`, createdAt: new Date().toISOString() },
+          { ...action.expense, id: generateId('exp'), createdAt: new Date().toISOString() },
         ],
       };
     case 'DELETE_EXPENSE':
@@ -85,6 +89,35 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
     const { rate } = await fetchExchangeRate();
     dispatch({ type: 'SET_RATE_AUTO', rate, timestamp: new Date().toISOString() });
   };
+
+  // Firebase sync
+  const { roomCode } = useSync();
+  const { showToast } = useToast();
+  const syncEnabled = !!roomCode && !loading;
+  const lastSyncErrorRef = useRef(0);
+
+  const handleRemoteUpdate = useCallback((data: BudgetState) => {
+    if (data && Array.isArray(data.expenses) && typeof data.budget === 'number') {
+      dispatch({ type: 'IMPORT_BUDGET', state: data });
+    }
+  }, []);
+
+  const handleSyncError = useCallback(() => {
+    const now = Date.now();
+    if (now - lastSyncErrorRef.current > 5000) {
+      lastSyncErrorRef.current = now;
+      showToast('Nie udało się zsynchronizować budżetu', 'error');
+    }
+  }, [showToast]);
+
+  useFirebaseSync({
+    roomCode,
+    path: 'budget',
+    localData: state,
+    onRemoteUpdate: handleRemoteUpdate,
+    enabled: syncEnabled,
+    onError: handleSyncError,
+  });
 
   return (
     <BudgetContext.Provider value={{ state, dispatch, loading, refreshRate }}>
