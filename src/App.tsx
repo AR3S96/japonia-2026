@@ -24,7 +24,7 @@ export default function App() {
             <BudgetProvider>
               <PackingProvider>
                 <HashRouter>
-                  <div style={{ display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: 'var(--color-bg)', overflow: 'hidden' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', backgroundColor: 'var(--color-bg)', overflow: 'hidden' }}>
                     <AnimatedRoutes>
                       <Routes>
                         <Route path="/" element={<DashboardPage />} />
